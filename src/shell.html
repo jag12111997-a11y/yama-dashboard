@@ -1,0 +1,1079 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blank</title>
+<style>
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+:root {
+  --bg-deepest: #020000;
+  --bg-dark: #080203;
+  --bg-panel: #0d0305;
+  --bg-widget: #100407;
+  --bg-header: rgba(140,20,20,0.12);
+  --border: rgba(140,20,20,0.25);
+  --border-light: rgba(140,20,20,0.12);
+  --text-bright: #e8d8d8;
+  --text-primary: rgba(230,200,200,0.85);
+  --text-secondary: rgba(200,160,160,0.65);
+  --text-muted: rgba(160,80,80,0.40);
+  --text-ghost: rgba(140,40,40,0.18);
+  --text-faint: rgba(140,40,40,0.10);
+  --hover: rgba(140,20,20,0.15);
+  --hover-strong: rgba(140,20,20,0.25);
+  --red: #cc1111;
+  --accent: #00e5cc;
+  --font: ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+html, body { height: 100%; overflow: hidden; font-family: var(--font); background: var(--bg-deepest); color: var(--text-primary); }
+
+/* ── Tab bar ── */
+.tab-bar {
+  display: flex; align-items: center; height: 40px; gap: 2px;
+  border-bottom: 1px solid var(--border); background: var(--bg-dark); padding: 0 8px;
+  user-select: none;
+}
+.btn-add-widget {
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+  border-radius: 6px; background: var(--hover-strong); border: none; cursor: pointer;
+  font-size: 12px; font-weight: 500; color: var(--text-primary); margin-right: 8px;
+  font-family: var(--font); transition: background 0.15s;
+}
+.btn-add-widget:hover { background: rgba(140,20,20,0.30); color: var(--text-bright); }
+.tab-divider { width: 1px; height: 16px; background: var(--border); margin: 0 4px; }
+.tab {
+  display: flex; align-items: center; gap: 6px; height: 28px; padding: 0 12px;
+  border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.15s;
+  position: relative;
+}
+.tab:hover { background: var(--hover); color: var(--text-secondary); }
+.tab.active { background: var(--hover-strong); color: var(--text-bright); }
+.tab .close-tab {
+  font-size: 10px; color: var(--text-muted); opacity: 0; margin-left: 2px;
+  transition: opacity 0.15s, color 0.15s; cursor: pointer;
+}
+.tab:hover .close-tab { opacity: 1; }
+.tab .close-tab:hover { color: var(--text-secondary); }
+.tab-name-input {
+  width: 70px; background: transparent; border: none; outline: none;
+  font-size: 12px; color: var(--text-bright); font-family: var(--font);
+}
+.btn-new-tab {
+  display: flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+  border-radius: 6px; border: none; cursor: pointer; font-size: 14px;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.15s;
+}
+.btn-new-tab:hover { background: var(--hover); color: var(--text-secondary); }
+.btn-layouts {
+  display: flex; align-items: center; gap: 5px; height: 28px; padding: 0 10px;
+  border-radius: 6px; border: none; cursor: pointer; font-size: 12px; font-weight: 500;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.15s;
+  margin-left: 8px;
+}
+.btn-layouts:hover { background: var(--hover); color: var(--text-secondary); }
+.btn-layouts svg { width: 14px; height: 14px; }
+.app-title {
+  margin-left: auto; padding-right: 8px; font-size: 11px; font-weight: 600;
+  letter-spacing: 0.12em; text-transform: uppercase; color: rgba(140,40,40,0.25);
+}
+
+/* ── Context menu ── */
+.ctx-menu {
+  position: fixed; z-index: 200; min-width: 140px; padding: 4px 0;
+  border-radius: 8px; border: 1px solid var(--border); background: #0d0305;
+  box-shadow: 0 8px 30px rgba(0,0,0,0.7);
+}
+.ctx-item {
+  display: block; width: 100%; padding: 6px 12px; border: none; background: none;
+  font-size: 12px; color: var(--text-secondary); text-align: left; cursor: pointer;
+  font-family: var(--font); transition: background 0.1s;
+}
+.ctx-item:hover { background: var(--hover); color: var(--text-bright); }
+.ctx-item.danger { color: rgba(204,17,17,0.7); }
+.ctx-item.danger:hover { color: var(--red); }
+
+/* ── Canvas ── */
+.canvas {
+  flex: 1; position: relative; overflow: auto;
+  background-image: radial-gradient(circle, rgba(140,20,20,0.08) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+.empty-state {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  pointer-events: none;
+}
+.empty-state h2 { font-size: 18px; font-weight: 500; color: rgba(0,229,204,0.35); }
+.empty-state p { margin-top: 4px; font-size: 12px; color: rgba(0,229,204,0.20); }
+.empty-state span { color: rgba(0,229,204,0.40); }
+
+/* ── Widget ── */
+.widget {
+  position: absolute; display: flex; flex-direction: column;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--bg-widget);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.3); transition: box-shadow 0.15s;
+}
+.widget:hover { box-shadow: 0 6px 28px rgba(0,0,0,0.4); }
+.widget-header {
+  display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 8px;
+  border-bottom: 1px solid var(--border-light); background: var(--bg-header);
+  border-radius: 8px 8px 0 0; cursor: grab; flex-shrink: 0; user-select: none;
+}
+.widget-header:active { cursor: grabbing; }
+.link-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.widget-name { font-size: 11px; font-weight: 500; color: var(--text-secondary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.widget-controls { display: flex; align-items: center; gap: 2px; margin-left: auto; }
+.widget-input {
+  width: 52px; padding: 2px 6px; border-radius: 4px; border: none;
+  background: rgba(140,20,20,0.10); color: var(--text-primary); font-size: 10px;
+  font-weight: 600; text-align: center; font-family: var(--font); outline: none;
+}
+.widget-input:focus { background: rgba(140,20,20,0.15); }
+.widget-select {
+  padding: 2px 4px; border-radius: 4px; border: none;
+  background: rgba(140,20,20,0.10); color: var(--text-secondary); font-size: 10px;
+  font-family: var(--font); outline: none; cursor: pointer;
+}
+.widget-select option { background: #0d0305; color: #e8d8d8; }
+.widget-btn {
+  display: flex; align-items: center; justify-content: center; width: 20px; height: 20px;
+  border-radius: 4px; border: none; cursor: pointer; font-size: 10px;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.1s;
+}
+.widget-btn:hover { background: rgba(140,20,20,0.15); color: var(--text-secondary); }
+.widget-btn.close:hover { background: rgba(204,17,17,0.25); color: var(--red); }
+.widget-btn.locked { color: var(--accent); opacity: 0.8; }
+.widget-btn.fullscreen-btn:hover { color: var(--accent); }
+.widget.fullscreen { position: fixed !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; z-index: 9999 !important; border-radius: 0; }
+.widget.fullscreen .resize-handle { display: none; }
+.widget.locked-widget .resize-handle { display: none; }
+.widget.locked-widget .widget-header { cursor: default; }
+.widget-body {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  overflow: hidden; padding: 12px;
+}
+.widget-body .placeholder { text-align: center; }
+.widget-body .placeholder .name { font-size: 14px; font-weight: 500; color: rgba(140,40,40,0.25); }
+.widget-body .placeholder .question { margin-top: 4px; font-size: 11px; color: var(--text-ghost); max-width: 200px; line-height: 1.4; }
+.resize-handle {
+  position: absolute; bottom: 0; right: 0; width: 16px; height: 16px;
+  cursor: se-resize; opacity: 0.15; transition: opacity 0.15s;
+}
+.widget:hover .resize-handle { opacity: 0.3; }
+
+/* ── Add Widget Panel ── */
+.panel-backdrop { position: fixed; inset: 0; z-index: 100; }
+.add-panel {
+  position: fixed; left: 0; top: 40px; bottom: 0; z-index: 110; width: 280px;
+  display: flex; flex-direction: column; border-right: 1px solid var(--border);
+  background: var(--bg-panel); box-shadow: 4px 0 30px rgba(0,0,0,0.4);
+}
+.add-panel-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; border-bottom: 1px solid var(--border-light);
+}
+.add-panel-header h2 { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+.add-panel-close { background: none; border: none; font-size: 12px; color: var(--text-muted); cursor: pointer; font-family: var(--font); }
+.add-panel-close:hover { color: var(--text-secondary); }
+.search-box {
+  margin: 8px 12px; padding: 6px 12px; border-radius: 6px; border: none;
+  background: rgba(140,20,20,0.10); color: var(--text-primary); font-size: 12px;
+  font-family: var(--font); outline: none;
+}
+.search-box::placeholder { color: rgba(160,80,80,0.35); }
+.search-box:focus { background: rgba(140,20,20,0.15); }
+.cat-list { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
+.cat-btn {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px;
+  border-radius: 6px; border: none; cursor: pointer; text-align: left;
+  background: transparent; font-family: var(--font); transition: background 0.1s;
+}
+.cat-btn:hover { background: rgba(140,20,20,0.10); }
+.cat-arrow { font-size: 10px; color: var(--text-muted); width: 12px; flex-shrink: 0; }
+.cat-label { font-size: 12px; font-weight: 500; color: var(--text-secondary); }
+.cat-question { font-size: 10px; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cat-count { font-size: 10px; color: rgba(140,40,40,0.25); margin-left: auto; }
+.cat-widgets { margin-left: 20px; margin-top: 2px; }
+.widget-option {
+  display: block; width: 100%; padding: 6px 10px; border-radius: 6px; border: none;
+  cursor: pointer; text-align: left; background: transparent; font-family: var(--font);
+  transition: background 0.1s;
+}
+.widget-option:hover { background: rgba(0,229,204,0.10); }
+.widget-option .wo-name { font-size: 12px; color: var(--text-secondary); }
+.widget-option:hover .wo-name { color: #00e5cc; }
+.widget-option .wo-q { font-size: 10px; color: rgba(160,80,80,0.35); line-height: 1.3; }
+.widget-option:hover .wo-q { color: rgba(0,229,204,0.5); }
+.no-results { text-align: center; padding-top: 32px; font-size: 12px; color: rgba(140,40,40,0.25); }
+
+/* ── Layout Manager ── */
+.lm-overlay {
+  position: fixed; inset: 0; z-index: 300; background: var(--bg-deepest);
+  display: flex; flex-direction: column; overflow: hidden;
+}
+.lm-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 24px; border-bottom: 1px solid var(--border);
+}
+.lm-header h2 { font-size: 16px; font-weight: 600; color: var(--text-primary); }
+.lm-close {
+  display: flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+  border-radius: 6px; border: none; cursor: pointer; font-size: 14px;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.15s;
+}
+.lm-close:hover { background: var(--hover); color: var(--text-secondary); }
+.lm-grid {
+  flex: 1; overflow-y: auto; padding: 24px;
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 16px; align-content: start;
+}
+.lm-card {
+  border-radius: 10px; border: 1px solid var(--border); background: var(--bg-panel);
+  overflow: hidden; cursor: pointer; transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lm-card:hover { border-color: rgba(140,20,20,0.35); box-shadow: 0 4px 20px rgba(0,0,0,0.5); }
+.lm-card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.lm-preview {
+  width: 100%; height: 140px; display: block; background: var(--bg-dark);
+  border-bottom: 1px solid var(--border-light);
+}
+.lm-card-info {
+  display: flex; align-items: center; justify-content: space-between; padding: 10px 12px;
+}
+.lm-card-name { font-size: 13px; font-weight: 500; color: var(--text-primary); }
+.lm-card-count { font-size: 11px; color: var(--text-muted); }
+.lm-card-actions { display: flex; gap: 2px; }
+.lm-card-btn {
+  display: flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+  border-radius: 5px; border: none; cursor: pointer; font-size: 11px;
+  color: var(--text-muted); background: transparent; font-family: var(--font); transition: all 0.1s;
+}
+.lm-card-btn:hover { background: var(--hover); color: var(--text-secondary); }
+.lm-card-btn.danger:hover { background: rgba(204,17,17,0.20); color: var(--red); }
+.lm-new-card {
+  border-radius: 10px; border: 2px dashed rgba(140,20,20,0.20); background: transparent;
+  display: flex; align-items: center; justify-content: center; min-height: 196px;
+  cursor: pointer; transition: border-color 0.15s;
+}
+.lm-new-card:hover { border-color: rgba(140,20,20,0.35); }
+.lm-new-label { font-size: 13px; color: var(--text-muted); }
+.lm-toolbar { display: flex; gap: 8px; }
+.lm-tool-btn {
+  padding: 6px 14px; border-radius: 6px; border: 1px solid var(--border); cursor: pointer;
+  font-size: 11px; font-weight: 500; color: var(--text-secondary); background: var(--bg-panel);
+  font-family: var(--font); transition: all 0.15s; letter-spacing: 0.5px;
+}
+.lm-tool-btn:hover { background: rgba(0,229,204,0.10); color: var(--accent); border-color: var(--accent); }
+.toast {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 10000;
+  padding: 8px 20px; border-radius: 8px; font-size: 12px; font-weight: 500;
+  background: var(--accent); color: #020000; font-family: var(--font);
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 1.7s forwards;
+}
+@keyframes toastIn { from { opacity:0; transform:translateX(-50%) translateY(12px); } to { opacity:1; transform:translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity:1; } to { opacity:0; } }
+
+/* ── Main layout ── */
+.app { display: flex; flex-direction: column; height: 100vh; }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <div class="tab-bar" id="tabBar"></div>
+  <div class="canvas" id="canvas"></div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// BLANK — single-file workspace shell
+// ═══════════════════════════════════════════════
+
+const GRID = 20;
+const STORAGE_KEY = 'blank-workspace';
+const TIMEFRAMES = ['1m','5m','15m','1H','4H','1D','1W','1M'];
+const LINK_COLORS = [
+  { key:'red',    hex:'#ef4444' },
+  { key:'blue',   hex:'#3b82f6' },
+  { key:'green',  hex:'#22c55e' },
+  { key:'yellow', hex:'#eab308' },
+  { key:'purple', hex:'#a855f7' },
+  { key:'orange', hex:'#f97316' },
+];
+
+// ── Widget registry ──
+const CATEGORIES = [
+  { id:'auction', label:'Auction & Structure', question:'Where is price accepted, rejected, defended, or moving toward?', widgets:[
+    { id:'market-structure',      name:'Market Structure',        question:'What is the current structure?',              dw:400, dh:300 },
+    { id:'acceptance-rejection',  name:'Acceptance / Rejection',  question:'Is price being accepted or rejected here?',   dw:360, dh:280 },
+    { id:'support-resistance',    name:'Support & Resistance',    question:'Which levels are being defended?',             dw:400, dh:300 },
+    { id:'volume-profile',        name:'Volume Profile',          question:'Where has volume accumulated?',                dw:360, dh:340 },
+    { id:'range-position',        name:'Range Position',          question:'Where is price within its range?',             dw:300, dh:200 },
+  ]},
+  { id:'participation', label:'Participation & Flow', question:'Who appears active, and is participation strengthening or weakening?', widgets:[
+    { id:'volume-pace',           name:'Volume Pace',             question:'Is volume above or below normal?',             dw:340, dh:240 },
+    { id:'buyer-seller-pressure', name:'Buyer / Seller Pressure', question:'Who is more aggressive?',                      dw:360, dh:280 },
+    { id:'breadth',               name:'Breadth',                 question:'Is the move broad or narrow?',                 dw:380, dh:260 },
+    { id:'tape-behavior',         name:'Tape Behavior',           question:'What does the tape reveal?',                   dw:360, dh:300 },
+  ]},
+  { id:'options', label:'Options & Greeks', question:'Where is options exposure concentrated and how might dealers respond?', widgets:[
+    { id:'gamma-regime',          name:'Gamma Regime',            question:'Are we in positive or negative gamma?',         dw:360, dh:260 },
+    { id:'gex-profile',           name:'GEX Strike Profile',      question:'Where is gamma exposure by strike?',            dw:420, dh:320 },
+    { id:'contract-concentration',name:'Contract Concentration',  question:'Where are contracts clustering?',               dw:380, dh:300 },
+    { id:'put-call-structure',    name:'Put / Call Structure',     question:'What is the put/call balance?',                dw:340, dh:240 },
+    { id:'implied-distribution',  name:'Implied Distribution',    question:'What does the market imply about outcomes?',    dw:400, dh:300 },
+    { id:'gex-chart',             name:'GEX Chart',               question:'GEX levels + QQQ price history',                dw:500, dh:360 },
+  ]},
+  { id:'volatility', label:'Volatility & Movement', question:'How much movement is implied, realized, spent, or still available?', widgets:[
+    { id:'volatility-regime',     name:'Volatility Regime',       question:'Is volatility high, low, expanding?',           dw:340, dh:240 },
+    { id:'expected-range',        name:'Expected Range',          question:'What range does the market expect?',            dw:320, dh:220 },
+    { id:'range-used',            name:'Range Used',              question:'How much of the expected range is spent?',       dw:300, dh:200 },
+    { id:'rv-iv',                 name:'Realized vs Implied',     question:'Is realized vol above or below implied?',       dw:380, dh:280 },
+  ]},
+  { id:'momentum', label:'Momentum & Relative', question:'Is the asset strengthening, weakening, stretching, or diverging?', widgets:[
+    { id:'momentum-state',        name:'Momentum State',          question:'What is the momentum reading?',                 dw:340, dh:240 },
+    { id:'relative-strength',     name:'Relative Strength',       question:'How strong is this vs peers?',                  dw:380, dh:280 },
+    { id:'mtf-alignment',         name:'Multi-TF Alignment',      question:'Do timeframes agree on direction?',             dw:360, dh:260 },
+    { id:'stretch-exhaustion',    name:'Stretch / Exhaustion',    question:'Is the move overextended?',                     dw:320, dh:220 },
+  ]},
+  { id:'rotation', label:'Rotation & Cross-Asset', question:'Where are attention and capital moving across the market?', widgets:[
+    { id:'sector-rotation',       name:'Sector Rotation',         question:'Which sectors lead or lag?',                    dw:420, dh:320 },
+    { id:'cross-asset',           name:'Cross-Asset Comparison',  question:'How are different assets behaving?',            dw:440, dh:340 },
+    { id:'risk-map',              name:'Risk-On / Risk-Off',      question:'Is the market risk-on or risk-off?',            dw:380, dh:280 },
+    { id:'macro-pressure',        name:'Macro Pressure',          question:'What macro forces are acting?',                 dw:400, dh:300 },
+  ]},
+  { id:'historical', label:'Historical Memory', question:'Has this happened before, and what followed?', widgets:[
+    { id:'historical-percentile', name:'Historical Percentile',   question:'Where does this rank historically?',            dw:340, dh:240 },
+    { id:'similar-sessions',      name:'Similar Sessions',        question:'When did similar conditions occur?',            dw:400, dh:320 },
+    { id:'regime-history',        name:'Regime History',           question:'How long do regimes typically last?',           dw:380, dh:280 },
+  ]},
+  { id:'synthesis', label:'Interpretation & Synthesis', question:'What do several pieces of evidence collectively suggest?', widgets:[
+    { id:'market-story',          name:'Market Story',            question:'What is the narrative right now?',               dw:440, dh:320 },
+    { id:'evidence-board',        name:'Evidence Board',          question:'What does the evidence say?',                   dw:460, dh:360 },
+    { id:'bull-bear-neutral',     name:'Bull / Bear / Neutral',   question:'Which case is strongest?',                      dw:400, dh:300 },
+    { id:'opportunity-map',       name:'Opportunity Map',         question:'Where might opportunity exist?',                dw:420, dh:320 },
+  ]},
+  { id:'catalysts', label:'Catalysts & Events', question:'What scheduled or developing event could change current behavior?', widgets:[
+    { id:'economic-calendar',     name:'Economic Calendar',       question:'What data is coming?',                          dw:400, dh:300 },
+    { id:'next-catalyst',         name:'Next Catalyst',           question:'What is the next event that matters?',          dw:340, dh:220 },
+    { id:'earnings-events',       name:'Earnings & Events',       question:'What company events are near?',                 dw:380, dh:280 },
+  ]},
+  { id:'process', label:'Process & Review', question:'What was observed, why did it matter, and what was learned?', widgets:[
+    { id:'thesis-builder',        name:'Thesis Builder',          question:'What is the current thesis?',                   dw:400, dh:320 },
+    { id:'observation-notes',     name:'Observation Notes',       question:'What did I notice?',                            dw:360, dh:280 },
+    { id:'trade-journal',         name:'Trade Journal',           question:'What happened and what did I learn?',           dw:420, dh:340 },
+    { id:'process-scorecard',     name:'Process Scorecard',       question:'Am I following my process?',                    dw:380, dh:280 },
+  ]},
+  { id:'utilities', label:'Utilities', question:'Supporting tools', widgets:[
+    { id:'watchlist',             name:'Watchlist',               question:'Which assets am I tracking?',                   dw:300, dh:400 },
+    { id:'alerts',                name:'Alerts',                  question:'What conditions am I watching for?',            dw:340, dh:280 },
+    { id:'clock-session',         name:'Clock / Session',         question:'What session are we in?',                       dw:240, dh:160 },
+    { id:'notes',                 name:'Notes',                   question:'Freeform notes',                                dw:320, dh:260 },
+  ]},
+];
+
+function findDef(defId) {
+  for (const cat of CATEGORIES) {
+    const w = cat.widgets.find(w => w.id === defId);
+    if (w) return w;
+  }
+  return null;
+}
+
+// ── Helpers ──
+function uid() { return Math.random().toString(36).slice(2,10); }
+function snap(v) { return Math.round(v / GRID) * GRID; }
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function deepCopy(obj) { return JSON.parse(JSON.stringify(obj)); }
+
+// ── State ──
+let state;
+try { state = JSON.parse(localStorage.getItem(STORAGE_KEY)); } catch(e) {}
+if (!state || !state.layouts || !state.layouts.length) {
+  const lay = { id: uid(), name: 'Layout 1', widgets: [] };
+  state = { layouts: [lay], activeLayoutId: lay.id };
+}
+function save() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); } catch(e) {} }
+function activeLayout() { return state.layouts.find(l => l.id === state.activeLayoutId) || state.layouts[0]; }
+
+// ── Rendering ──
+let panelOpen = false;
+let layoutManagerOpen = false;
+let ctxMenu = null;
+let editingTabId = null;
+
+function render() {
+  renderTabs();
+  renderCanvas();
+  save();
+}
+
+function renderTabs() {
+  const bar = document.getElementById('tabBar');
+  let html = '';
+
+  // + Widget button
+  html += '<button class="btn-add-widget" onclick="togglePanel()"><span style="font-size:14px">+</span> Widget</button>';
+  html += '<div class="tab-divider"></div>';
+
+  // Layout tabs
+  state.layouts.forEach(lay => {
+    const isActive = lay.id === state.activeLayoutId;
+    html += `<button class="tab ${isActive ? 'active' : ''}" onclick="switchTab('${lay.id}')" ondblclick="startRenameTab('${lay.id}')" oncontextmenu="tabContext(event,'${lay.id}')">`;
+
+    if (editingTabId === lay.id) {
+      html += `<input class="tab-name-input" id="tabInput" value="${esc(lay.name)}" onblur="commitRename()" onkeydown="renameKey(event)">`;
+    } else {
+      html += esc(lay.name);
+    }
+    if (isActive && state.layouts.length > 1) {
+      html += `<span class="close-tab" onclick="event.stopPropagation(); deleteTab('${lay.id}')">✕</span>`;
+    }
+    html += '</button>';
+  });
+
+  // New tab button
+  html += '<button class="btn-new-tab" onclick="addTab()" title="New layout">+</button>';
+
+  // Layouts manager button
+  html += '<button class="btn-layouts" onclick="openLayoutManager()" title="Manage layouts">';
+  html += '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="1" width="6" height="6" rx="1"/><rect x="9" y="1" width="6" height="6" rx="1"/><rect x="1" y="9" width="6" height="6" rx="1"/><rect x="9" y="9" width="6" height="6" rx="1"/></svg>';
+  html += 'Layouts</button>';
+
+  html += '<div class="app-title">Blank</div>';
+  bar.innerHTML = html;
+
+  // Focus rename input
+  if (editingTabId) {
+    const inp = document.getElementById('tabInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+
+  // Context menu
+  renderCtxMenu();
+}
+
+function renderCtxMenu() {
+  let old = document.getElementById('ctxMenuEl');
+  if (old) old.remove();
+  if (!ctxMenu) return;
+
+  const div = document.createElement('div');
+  div.id = 'ctxMenuEl';
+  div.className = 'ctx-menu';
+  div.style.left = ctxMenu.x + 'px';
+  div.style.top = ctxMenu.y + 'px';
+
+  let html = `<button class="ctx-item" onclick="startRenameTab('${ctxMenu.layoutId}')">Rename</button>`;
+  html += `<button class="ctx-item" onclick="duplicateTab('${ctxMenu.layoutId}')">Duplicate</button>`;
+  if (state.layouts.length > 1) {
+    html += `<button class="ctx-item danger" onclick="deleteTab('${ctxMenu.layoutId}')">Delete</button>`;
+  }
+  div.innerHTML = html;
+  document.body.appendChild(div);
+
+  setTimeout(() => {
+    document.addEventListener('click', closeCtx, { once: true });
+  }, 0);
+}
+
+function closeCtx() { ctxMenu = null; renderCtxMenu(); }
+function tabContext(e, id) { e.preventDefault(); ctxMenu = { x: e.clientX, y: e.clientY, layoutId: id }; renderCtxMenu(); }
+function switchTab(id) { state.activeLayoutId = id; render(); }
+
+function addTab() {
+  const lay = { id: uid(), name: `Layout ${state.layouts.length + 1}`, widgets: [] };
+  state.layouts.push(lay);
+  state.activeLayoutId = lay.id;
+  render();
+}
+
+function deleteTab(id) {
+  if (state.layouts.length <= 1) return;
+  state.layouts = state.layouts.filter(l => l.id !== id);
+  if (state.activeLayoutId === id) state.activeLayoutId = state.layouts[0].id;
+  ctxMenu = null;
+  render();
+}
+
+function duplicateTab(id) {
+  const src = state.layouts.find(l => l.id === id);
+  if (!src) return;
+  const copy = { id: uid(), name: src.name + ' (copy)', widgets: deepCopy(src.widgets).map(w => ({ ...w, id: uid() })) };
+  state.layouts.push(copy);
+  state.activeLayoutId = copy.id;
+  ctxMenu = null;
+  render();
+}
+
+function startRenameTab(id) { editingTabId = id; ctxMenu = null; renderTabs(); }
+
+function commitRename() {
+  const inp = document.getElementById('tabInput');
+  if (inp && editingTabId) {
+    const val = inp.value.trim();
+    if (val) {
+      const lay = state.layouts.find(l => l.id === editingTabId);
+      if (lay) lay.name = val;
+    }
+  }
+  editingTabId = null;
+  render();
+}
+
+function renameKey(e) {
+  if (e.key === 'Enter') commitRename();
+  if (e.key === 'Escape') { editingTabId = null; renderTabs(); }
+}
+
+// ── Canvas ──
+function renderCanvas() {
+  const canvas = document.getElementById('canvas');
+  const lay = activeLayout();
+
+  if (lay.widgets.length === 0) {
+    canvas.innerHTML = '<div class="empty-state"><div><h2>Blank canvas</h2><p>Click <span>+ Widget</span> to get started</p></div></div>';
+    return;
+  }
+
+  let html = '';
+  lay.widgets.forEach((w, idx) => {
+    const def = findDef(w.definitionId);
+    const linkColor = LINK_COLORS.find(c => c.key === w.linkGroup);
+    const name = def ? def.name : w.definitionId;
+    const question = def ? def.question : '';
+
+    html += `<div class="widget${w.locked ? ' locked-widget' : ''}" style="left:${w.x}px;top:${w.y}px;width:${w.w}px;height:${w.h}px;z-index:${idx + 1}" data-wid="${w.id}" onmousedown="bringToFront('${w.id}')">`;
+
+    // Header
+    html += `<div class="widget-header" onmousedown="startDrag(event, '${w.id}')" ondblclick="toggleFullscreen('${w.id}')">`;
+    if (linkColor) {
+      html += `<div class="link-dot" style="background:${linkColor.hex}"></div>`;
+    }
+    html += `<span class="widget-name">${esc(name)}</span>`;
+    html += '<div class="widget-controls">';
+
+    // Ticker
+    html += `<input class="widget-input" value="${esc(w.ticker)}" onchange="setTicker('${w.id}', this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">`;
+
+    // Timeframe
+    html += `<select class="widget-select" onchange="setTimeframe('${w.id}', this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">`;
+    TIMEFRAMES.forEach(tf => {
+      html += `<option value="${tf}" ${tf === w.timeframe ? 'selected' : ''}>${tf}</option>`;
+    });
+    html += '</select>';
+
+    // Link group
+    html += `<select class="widget-select" onchange="setLinkGroup('${w.id}', this.value)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()" title="Link group">`;
+    html += `<option value="" ${!w.linkGroup ? 'selected' : ''}>—</option>`;
+    LINK_COLORS.forEach(c => {
+      html += `<option value="${c.key}" ${w.linkGroup === c.key ? 'selected' : ''}>${c.key}</option>`;
+    });
+    html += '</select>';
+
+    // Lock, Fullscreen, Duplicate & Close
+    html += `<button class="widget-btn lock-btn${w.locked ? ' locked' : ''}" onclick="event.stopPropagation(); toggleLock('${w.id}')" title="Lock position">${w.locked ? '🔒' : '🔓'}</button>`;
+    html += `<button class="widget-btn fullscreen-btn" onclick="event.stopPropagation(); toggleFullscreen('${w.id}')" title="Fullscreen">⛶</button>`;
+    html += `<button class="widget-btn" onclick="event.stopPropagation(); dupWidget('${w.id}')" title="Duplicate">⧉</button>`;
+    html += `<button class="widget-btn close" onclick="event.stopPropagation(); removeWidget('${w.id}')" title="Remove">✕</button>`;
+
+    html += '</div></div>'; // controls, header
+
+    // Body
+    html += `<div class="widget-body"><div class="placeholder"><div class="name">${esc(name)}</div><div class="question">${esc(question)}</div></div></div>`;
+
+    // Resize handle
+    html += `<div class="resize-handle" onmousedown="startResize(event, '${w.id}')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
+
+    html += '</div>'; // widget
+  });
+
+  canvas.innerHTML = html;
+}
+
+// ── Widget actions ──
+function addWidget(defId) {
+  const def = findDef(defId);
+  if (!def) return;
+  const lay = activeLayout();
+  lay.widgets.push({
+    id: uid(), definitionId: defId,
+    x: snap(40 + Math.random() * 120), y: snap(40 + Math.random() * 120),
+    w: def.dw, h: def.dh,
+    ticker: 'QQQ', timeframe: '1D', linkGroup: null, settings: {}
+  });
+  render();
+}
+
+function removeWidget(id) {
+  const lay = activeLayout();
+  lay.widgets = lay.widgets.filter(w => w.id !== id);
+  render();
+}
+
+function dupWidget(id) {
+  const lay = activeLayout();
+  const src = lay.widgets.find(w => w.id === id);
+  if (!src) return;
+  const copy = deepCopy(src);
+  copy.id = uid();
+  copy.x = src.x + 40;
+  copy.y = src.y + 40;
+  lay.widgets.push(copy);
+  render();
+}
+
+function toggleLock(id) {
+  const lay = activeLayout();
+  const w = lay.widgets.find(w => w.id === id);
+  if (!w) return;
+  w.locked = !w.locked;
+  const el = document.querySelector(`.widget[data-wid="${id}"]`);
+  if (el) {
+    el.classList.toggle('locked-widget', w.locked);
+    const btn = el.querySelector('.lock-btn');
+    if (btn) { btn.classList.toggle('locked', w.locked); btn.innerHTML = w.locked ? '🔒' : '🔓'; }
+  }
+  save();
+}
+
+let fullscreenId = null;
+function toggleFullscreen(id) {
+  const el = document.querySelector(`.widget[data-wid="${id}"]`);
+  if (!el) return;
+  if (fullscreenId === id) {
+    el.classList.remove('fullscreen');
+    const w = activeLayout().widgets.find(w => w.id === id);
+    if (w) { el.style.left = w.x+'px'; el.style.top = w.y+'px'; el.style.width = w.w+'px'; el.style.height = w.h+'px'; }
+    fullscreenId = null;
+  } else {
+    if (fullscreenId) {
+      const prev = document.querySelector(`.widget[data-wid="${fullscreenId}"]`);
+      if (prev) { prev.classList.remove('fullscreen'); const pw = activeLayout().widgets.find(w => w.id === fullscreenId); if (pw) { prev.style.left=pw.x+'px'; prev.style.top=pw.y+'px'; prev.style.width=pw.w+'px'; prev.style.height=pw.h+'px'; } }
+    }
+    el.classList.add('fullscreen');
+    fullscreenId = id;
+  }
+}
+
+function setTicker(id, val) {
+  const lay = activeLayout();
+  const widget = lay.widgets.find(w => w.id === id);
+  if (!widget) return;
+  const ticker = val.toUpperCase();
+  widget.ticker = ticker;
+  // Propagate to link group
+  if (widget.linkGroup) {
+    lay.widgets.forEach(w => { if (w.linkGroup === widget.linkGroup) w.ticker = ticker; });
+  }
+  save();
+  // Update all ticker inputs without full re-render (avoids losing focus)
+  document.querySelectorAll('.widget').forEach(el => {
+    const wid = el.dataset.wid;
+    const w = lay.widgets.find(w => w.id === wid);
+    if (w) el.querySelector('.widget-input').value = w.ticker;
+  });
+}
+
+function setTimeframe(id, val) {
+  const lay = activeLayout();
+  const w = lay.widgets.find(w => w.id === id);
+  if (w) w.timeframe = val;
+  save();
+}
+
+function setLinkGroup(id, val) {
+  const lay = activeLayout();
+  const w = lay.widgets.find(w => w.id === id);
+  if (w) w.linkGroup = val || null;
+  render();
+}
+
+function bringToFront(id) {
+  const lay = activeLayout();
+  const idx = lay.widgets.findIndex(w => w.id === id);
+  if (idx < 0) return;
+  lay.widgets.push(lay.widgets.splice(idx, 1)[0]);
+  document.querySelectorAll('.widget').forEach(el => {
+    const wid = el.dataset.wid;
+    const zi = lay.widgets.findIndex(w => w.id === wid);
+    el.style.zIndex = zi + 1;
+  });
+  save();
+}
+
+// ── Drag ──
+let dragState = null;
+function startDrag(e, id) {
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'BUTTON') return;
+  e.preventDefault();
+  const lay = activeLayout();
+  const w = lay.widgets.find(w => w.id === id);
+  if (!w || w.locked) return;
+  bringToFront(id);
+  dragState = { id, startX: e.clientX, startY: e.clientY, origX: w.x, origY: w.y };
+  document.addEventListener('mousemove', onDrag);
+  document.addEventListener('mouseup', endDrag);
+}
+
+function onDrag(e) {
+  if (!dragState) return;
+  const dx = e.clientX - dragState.startX;
+  const dy = e.clientY - dragState.startY;
+  const nx = snap(Math.max(0, dragState.origX + dx));
+  const ny = snap(Math.max(0, dragState.origY + dy));
+  const el = document.querySelector(`.widget[data-wid="${dragState.id}"]`);
+  if (el) { el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
+  const w = activeLayout().widgets.find(w => w.id === dragState.id);
+  if (w) { w.x = nx; w.y = ny; }
+}
+
+function endDrag() {
+  dragState = null;
+  document.removeEventListener('mousemove', onDrag);
+  document.removeEventListener('mouseup', endDrag);
+  save();
+}
+
+// ── Resize ──
+let resizeState = null;
+function startResize(e, id) {
+  e.preventDefault();
+  e.stopPropagation();
+  const w = activeLayout().widgets.find(w => w.id === id);
+  if (!w || w.locked) return;
+  resizeState = { id, startX: e.clientX, startY: e.clientY, origW: w.w, origH: w.h };
+  document.addEventListener('mousemove', onResize);
+  document.addEventListener('mouseup', endResize);
+}
+
+function onResize(e) {
+  if (!resizeState) return;
+  const dw = e.clientX - resizeState.startX;
+  const dh = e.clientY - resizeState.startY;
+  const nw = snap(Math.max(200, resizeState.origW + dw));
+  const nh = snap(Math.max(120, resizeState.origH + dh));
+  const el = document.querySelector(`.widget[data-wid="${resizeState.id}"]`);
+  if (el) { el.style.width = nw + 'px'; el.style.height = nh + 'px'; }
+  const w = activeLayout().widgets.find(w => w.id === resizeState.id);
+  if (w) { w.w = nw; w.h = nh; }
+}
+
+function endResize() {
+  resizeState = null;
+  document.removeEventListener('mousemove', onResize);
+  document.removeEventListener('mouseup', endResize);
+  save();
+}
+
+// ── Add Widget Panel ──
+let expandedCat = null;
+let searchText = '';
+
+function togglePanel() { panelOpen = !panelOpen; renderPanel(); }
+
+function renderPanel() {
+  let old = document.getElementById('addPanel');
+  if (old) old.remove();
+  let oldBd = document.getElementById('panelBackdrop');
+  if (oldBd) oldBd.remove();
+
+  if (!panelOpen) return;
+
+  // Backdrop
+  const bd = document.createElement('div');
+  bd.id = 'panelBackdrop';
+  bd.className = 'panel-backdrop';
+  bd.onclick = () => { panelOpen = false; renderPanel(); };
+  document.body.appendChild(bd);
+
+  // Panel
+  const panel = document.createElement('div');
+  panel.id = 'addPanel';
+  panel.className = 'add-panel';
+
+  // Flatten all widgets into one alphabetical list
+  const lower = searchText.toLowerCase();
+  let allWidgets = [];
+  CATEGORIES.forEach(c => c.widgets.forEach(w => allWidgets.push(w)));
+  allWidgets.sort((a, b) => a.name.localeCompare(b.name));
+  if (searchText) {
+    allWidgets = allWidgets.filter(w => w.name.toLowerCase().includes(lower) || w.question.toLowerCase().includes(lower));
+  }
+
+  let html = '<div class="add-panel-header"><h2>Add Widget</h2><button class="add-panel-close" onclick="panelOpen=false; renderPanel()">✕</button></div>';
+  html += `<input class="search-box" id="panelSearch" placeholder="Search widgets..." value="${esc(searchText)}" oninput="searchText=this.value; renderPanel()">`;
+  html += '<div class="cat-list"><div class="cat-widgets">';
+
+  allWidgets.forEach(w => {
+    html += `<button class="widget-option" onclick="addWidget('${w.id}'); panelOpen=false; renderPanel()">`;
+    html += `<div class="wo-name">${esc(w.name)}</div>`;
+    html += `<div class="wo-q">${esc(w.question)}</div></button>`;
+  });
+
+  if (allWidgets.length === 0) {
+    html += `<div class="no-results">No widgets match "${esc(searchText)}"</div>`;
+  }
+
+  html += '</div></div>';
+  panel.innerHTML = html;
+  document.body.appendChild(panel);
+
+  const srch = document.getElementById('panelSearch');
+  if (srch) srch.focus();
+}
+
+// ── Toast ──
+function showToast(msg) {
+  const old = document.querySelector('.toast');
+  if (old) old.remove();
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 2000);
+}
+
+// ── Export / Import ──
+function exportLayouts() {
+  const json = JSON.stringify(state, null, 2);
+  navigator.clipboard.writeText(json).then(() => showToast('Layouts copied to clipboard')).catch(() => {
+    const blob = new Blob([json], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'gshinrje-layouts.json';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    showToast('Layouts downloaded');
+  });
+}
+
+function importLayouts() {
+  const inp = document.createElement('input');
+  inp.type = 'file';
+  inp.accept = '.json';
+  inp.onchange = function() {
+    const file = inp.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        const imported = JSON.parse(e.target.result);
+        if (!imported.layouts || !Array.isArray(imported.layouts)) { showToast('Invalid file — no layouts found'); return; }
+        state = imported;
+        save();
+        render();
+        if (layoutManagerOpen) renderLayoutManager();
+        showToast('Layouts imported (' + imported.layouts.length + ')');
+      } catch(err) { showToast('Import failed — bad JSON'); }
+    };
+    reader.readAsText(file);
+  };
+  inp.click();
+}
+
+// ── Layout Manager ──
+let lmRenameId = null;
+
+function openLayoutManager() {
+  layoutManagerOpen = true;
+  renderLayoutManager();
+}
+
+function closeLayoutManager() {
+  layoutManagerOpen = false;
+  lmRenameId = null;
+  const el = document.getElementById('layoutManager');
+  if (el) el.remove();
+}
+
+function renderLayoutManager() {
+  let old = document.getElementById('layoutManager');
+  if (old) old.remove();
+  if (!layoutManagerOpen) return;
+
+  const overlay = document.createElement('div');
+  overlay.id = 'layoutManager';
+  overlay.className = 'lm-overlay';
+
+  let html = '<div class="lm-header"><h2>Layouts</h2>';
+  html += '<div class="lm-toolbar">';
+  html += '<button class="lm-tool-btn" onclick="exportLayouts()">↑ Export</button>';
+  html += '<button class="lm-tool-btn" onclick="importLayouts()">↓ Import</button>';
+  html += '</div>';
+  html += '<button class="lm-close" onclick="closeLayoutManager()">✕</button></div>';
+  html += '<div class="lm-grid">';
+
+  state.layouts.forEach(lay => {
+    const isActive = lay.id === state.activeLayoutId;
+    const count = lay.widgets.length;
+    html += `<div class="lm-card ${isActive ? 'active' : ''}" onclick="lmSwitch('${lay.id}')">`;
+    html += `<canvas class="lm-preview" data-layout-id="${lay.id}" width="480" height="280"></canvas>`;
+    html += '<div class="lm-card-info"><div>';
+
+    if (lmRenameId === lay.id) {
+      html += `<input class="tab-name-input" style="width:120px;font-size:13px" id="lmRenameInput" value="${esc(lay.name)}" onblur="lmCommitRename()" onkeydown="lmRenameKey(event)" onclick="event.stopPropagation()" onmousedown="event.stopPropagation()">`;
+    } else {
+      html += `<div class="lm-card-name">${esc(lay.name)}</div>`;
+    }
+    html += `<div class="lm-card-count">${count} widget${count !== 1 ? 's' : ''}</div>`;
+    html += '</div><div class="lm-card-actions">';
+    html += `<button class="lm-card-btn" onclick="event.stopPropagation(); lmStartRename('${lay.id}')" title="Rename">✎</button>`;
+    html += `<button class="lm-card-btn" onclick="event.stopPropagation(); lmDuplicate('${lay.id}')" title="Duplicate">⧉</button>`;
+    if (state.layouts.length > 1) {
+      html += `<button class="lm-card-btn danger" onclick="event.stopPropagation(); lmDelete('${lay.id}')" title="Delete">✕</button>`;
+    }
+    html += '</div></div></div>';
+  });
+
+  // New layout card
+  html += '<div class="lm-new-card" onclick="lmNewLayout()"><span class="lm-new-label">+ New Layout</span></div>';
+
+  html += '</div>';
+  overlay.innerHTML = html;
+  document.body.appendChild(overlay);
+
+  // Draw mini previews on each canvas
+  state.layouts.forEach(lay => {
+    const cvs = document.querySelector(`canvas[data-layout-id="${lay.id}"]`);
+    if (cvs) drawPreview(cvs, lay);
+  });
+
+  // Focus rename input if active
+  if (lmRenameId) {
+    const inp = document.getElementById('lmRenameInput');
+    if (inp) { inp.focus(); inp.select(); }
+  }
+}
+
+function drawPreview(canvas, layout) {
+  const ctx = canvas.getContext('2d');
+  const cw = canvas.width;
+  const ch = canvas.height;
+
+  // Background
+  ctx.fillStyle = '#050000';
+  ctx.fillRect(0, 0, cw, ch);
+
+  if (layout.widgets.length === 0) {
+    ctx.fillStyle = 'rgba(140,40,40,0.15)';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('Empty', cw / 2, ch / 2 + 4);
+    return;
+  }
+
+  // Find bounding box to scale preview
+  let minX = Infinity, minY = Infinity, maxX = 0, maxY = 0;
+  layout.widgets.forEach(w => {
+    if (w.x < minX) minX = w.x;
+    if (w.y < minY) minY = w.y;
+    if (w.x + w.w > maxX) maxX = w.x + w.w;
+    if (w.y + w.h > maxY) maxY = w.y + w.h;
+  });
+
+  const bw = maxX - minX || 1;
+  const bh = maxY - minY || 1;
+  const pad = 20;
+  const scale = Math.min((cw - pad * 2) / bw, (ch - pad * 2) / bh);
+  const ox = pad + ((cw - pad * 2) - bw * scale) / 2 - minX * scale;
+  const oy = pad + ((ch - pad * 2) - bh * scale) / 2 - minY * scale;
+
+  layout.widgets.forEach(w => {
+    const rx = ox + w.x * scale;
+    const ry = oy + w.y * scale;
+    const rw = w.w * scale;
+    const rh = w.h * scale;
+
+    // Widget body
+    ctx.fillStyle = '#0d0305';
+    ctx.strokeStyle = 'rgba(140,20,20,0.25)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, rw, rh, 3);
+    ctx.fill();
+    ctx.stroke();
+
+    // Header bar
+    const headerH = Math.max(4, rh * 0.12);
+    ctx.fillStyle = 'rgba(140,20,20,0.15)';
+    ctx.fillRect(rx, ry, rw, headerH);
+
+    // Link dot
+    if (w.linkGroup) {
+      const lc = LINK_COLORS.find(c => c.key === w.linkGroup);
+      if (lc) {
+        ctx.fillStyle = lc.hex;
+        ctx.beginPath();
+        ctx.arc(rx + 6, ry + headerH / 2, 2.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+  });
+}
+
+function lmSwitch(id) {
+  if (lmRenameId) return;
+  state.activeLayoutId = id;
+  save();
+  closeLayoutManager();
+  render();
+}
+
+function lmNewLayout() {
+  const lay = { id: uid(), name: `Layout ${state.layouts.length + 1}`, widgets: [] };
+  state.layouts.push(lay);
+  state.activeLayoutId = lay.id;
+  save();
+  closeLayoutManager();
+  render();
+}
+
+function lmDuplicate(id) {
+  const src = state.layouts.find(l => l.id === id);
+  if (!src) return;
+  const copy = { id: uid(), name: src.name + ' (copy)', widgets: deepCopy(src.widgets).map(w => ({ ...w, id: uid() })) };
+  state.layouts.push(copy);
+  save();
+  renderLayoutManager();
+}
+
+function lmDelete(id) {
+  if (state.layouts.length <= 1) return;
+  state.layouts = state.layouts.filter(l => l.id !== id);
+  if (state.activeLayoutId === id) state.activeLayoutId = state.layouts[0].id;
+  save();
+  renderLayoutManager();
+}
+
+function lmStartRename(id) {
+  lmRenameId = id;
+  renderLayoutManager();
+}
+
+function lmCommitRename() {
+  const inp = document.getElementById('lmRenameInput');
+  if (inp && lmRenameId) {
+    const val = inp.value.trim();
+    if (val) {
+      const lay = state.layouts.find(l => l.id === lmRenameId);
+      if (lay) lay.name = val;
+    }
+  }
+  lmRenameId = null;
+  save();
+  renderLayoutManager();
+}
+
+function lmRenameKey(e) {
+  if (e.key === 'Enter') lmCommitRename();
+  if (e.key === 'Escape') { lmRenameId = null; renderLayoutManager(); }
+}
+
+// ── Init ──
+render();
+</script>
+</body>
+</html>
