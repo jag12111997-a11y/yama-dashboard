@@ -5327,7 +5327,8 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
     }
   }
 
-  render();
+  // Defer render() so CATEGORIES (defined later in the file) is assigned first.
+  setTimeout(render, 0);
 
   // Overlay-chart controls: mode toggle, expand, and click-to-hide a line.
   // Delegated on document so it survives every re-render.
