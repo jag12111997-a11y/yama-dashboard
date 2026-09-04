@@ -4171,6 +4171,8 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
         if (indicatorSeries && chart.panes && chart.panes()[1]) chart.panes()[1].setHeight(74);
       } catch (paneHeightErr) {}
     } else {
+      // Build daily OHLC candles from HISTORY_DATA closes.
+      // Open = previous day's close; high/low estimated from daily % move.
       var cut = H.indexOf(e);
       var hist = cut >= 0 ? H.slice(0, cut + 1) : H.slice();
       var daily = {};
@@ -4178,20 +4180,49 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
         var q = null;
         (entry.watchlist || []).forEach(function (w) { if (w.symbol === "QQQ") q = w; });
         if (q && has(q.last) && entry.entry_date) {
-          // AM and PM snapshots can share a date. Keep the later real QQQ
-          // value so Lightweight Charts receives one strictly ordered point
-          // per session date.
           daily[String(entry.entry_date).slice(0, 10)] = Number(q.last);
         }
       });
-      var points = Object.keys(daily).sort().map(function (day) {
-        return { time: day, value: daily[day] };
+      var sortedDays = Object.keys(daily).sort();
+      var dailyCandles = sortedDays.map(function (day, i) {
+        var close = daily[day];
+        var open = i > 0 ? daily[sortedDays[i - 1]] : close;
+        // Estimate intraday range: ~0.3% beyond open/close on each side
+        var spread = Math.abs(close - open) * 0.3 + close * 0.001;
+        var high = Math.max(open, close) + spread;
+        var low = Math.min(open, close) - spread;
+        return { time: day, open: open, high: high, low: low, close: close, volume: 0 };
       });
-      series = chart.addSeries(TV.LineSeries, {
-        color: "#ff2be0", lineWidth: 2, priceLineVisible: false,
-        lastValueVisible: true, crosshairMarkerRadius: 4
-      });
-      series.setData(points);
+
+      if (dailyCandles.length) {
+        var displayCandles = QQQ_CHART_VIEW.mode === "ha" ? qqqHaCandles(dailyCandles) : qqqRawDisplay(dailyCandles);
+        series = chart.addSeries(TV.CandlestickSeries, {
+          upColor: "#00e676", downColor: "#ff453a",
+          borderUpColor: "#00e676", borderDownColor: "#ff453a",
+          wickUpColor: "#69f0ae", wickDownColor: "#ff7961",
+          priceLineVisible: false, lastValueVisible: true
+        });
+        series.setData(displayCandles);
+
+        if (QQQ_CHART_VIEW.ema) {
+          ema9Series = chart.addSeries(TV.LineSeries, {
+            title: "EMA 9", color: "#29b6f6", lineWidth: 1,
+            priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false
+          });
+          ema20Series = chart.addSeries(TV.LineSeries, {
+            title: "EMA 20", color: "#ff9f0a", lineWidth: 1,
+            priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false
+          });
+          ema9Series.setData(qqqEma(dailyCandles, 9));
+          ema20Series.setData(qqqEma(dailyCandles, 20));
+        }
+      } else {
+        series = chart.addSeries(TV.LineSeries, {
+          color: "#ff2be0", lineWidth: 2, priceLineVisible: false,
+          lastValueVisible: true, crosshairMarkerRadius: 4
+        });
+        series.setData([]);
+      }
     }
 
     // The reference-style moving GEX system: each logger snapshot becomes one
