@@ -437,6 +437,8 @@ function renderAllWidgets() {
 // ═══════════════════════════════════════════════
 // DASHBOARD ENGINE — utilities + widget renderers
 // ═══════════════════════════════════════════════
+// Bridge embedded data into the variable the dashboard IIFE expects
+window.MARKET_DASH_HISTORY = HISTORY_DATA;
 (function() {
   // All dashboard functions are exposed to global scope for widget dispatcher
 
