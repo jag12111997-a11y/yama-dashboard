@@ -337,6 +337,68 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 /* Data loading state */
 .widget-body .loading { text-align:center; padding:20px; color:rgba(140,40,40,0.3); font-size:12px; }
 
+/* ── GEX Chart widget: TradingView chart inside widget ── */
+.widget-body .gex-chart-wrap {
+  display:flex; flex-direction:column; width:100%; height:100%;
+}
+.widget-body .qqq-leverage-meter {
+  font-size:10px; line-height:1.3; padding:4px 6px; color:var(--text-secondary);
+}
+.widget-body .qqq-leverage-meter-head {
+  display:flex; justify-content:space-between; align-items:baseline; gap:6px; flex-wrap:wrap;
+}
+.widget-body .qqq-leverage-meter-title { font-size:10px; }
+.widget-body .qqq-leverage-meter-title small { color:var(--text-muted); }
+.widget-body .qqq-leverage-meter-state { font-weight:700; color:var(--lev-color, var(--accent)); font-size:11px; }
+.widget-body .qqq-leverage-meter-row {
+  display:flex; align-items:center; gap:4px; margin:3px 0;
+}
+.widget-body .qqq-leverage-meter-side { text-align:center; min-width:50px; font-size:9px; }
+.widget-body .qqq-leverage-meter-side b { display:block; font-size:11px; }
+.widget-body .qqq-leverage-track {
+  flex:1; display:flex; height:6px; border-radius:3px; overflow:hidden; background:#1a1a2a;
+}
+.widget-body .qqq-leverage-segment { height:100%; }
+.widget-body .qqq-leverage-segment.bear { background:#ff453a; }
+.widget-body .qqq-leverage-segment.balance { background:#ffd600; }
+.widget-body .qqq-leverage-segment.bull { background:#00e676; }
+.widget-body .qqq-leverage-meter-scale {
+  display:flex; justify-content:space-between; font-size:8px; color:var(--text-muted); margin-top:1px;
+}
+.widget-body .qqq-leverage-meter-math { font-size:8px; color:var(--text-muted); margin-top:2px; }
+
+.widget-body .qqq-chart-controls {
+  display:flex; flex-wrap:wrap; align-items:center; gap:3px; padding:3px 4px; font-size:9px;
+}
+.widget-body .qqq-chart-controls .label {
+  color:var(--text-muted); font-size:9px; text-transform:uppercase; letter-spacing:.5px;
+  margin-right:2px;
+}
+.widget-body .qqq-layer {
+  background:transparent; border:1px solid rgba(140,20,20,0.3); color:var(--text-secondary);
+  padding:1px 5px; border-radius:3px; font:9px var(--font); cursor:pointer; white-space:nowrap;
+}
+.widget-body .qqq-layer[aria-pressed="true"] {
+  background:rgba(0,229,204,0.15); border-color:var(--accent); color:var(--accent);
+}
+.widget-body .qqq-layer:hover { border-color:rgba(140,20,20,0.5); }
+
+.widget-body .qqq-chart-shell {
+  position:relative; width:100%; flex:1; min-height:180px;
+}
+.widget-body .qqq-chart-canvas {
+  width:100% !important; height:100% !important; min-height:180px;
+}
+
+.widget-body .qqq-chart-key {
+  display:flex; flex-wrap:wrap; gap:6px 12px; padding:4px 6px; font-size:8px; line-height:1.4;
+  border-top:1px solid rgba(140,20,20,0.15);
+}
+.widget-body .qqq-chart-key span { display:inline-flex; align-items:center; gap:3px; white-space:nowrap; }
+.widget-body .qqq-chart-key i {
+  display:inline-block; width:10px; height:2px; border-radius:1px; background:currentColor;
+}
+
 </style>
 </head>
 <body>
@@ -5767,7 +5829,7 @@ function renderGexChart(e) {
     return '<div class="loading">Chart engine not loaded</div>';
   }
   // secQqqTradingChart(e, bodyOnly) — bodyOnly=true strips the <section> wrapper
-  var html = window.secQqqTradingChart(e, true);
+  var html = '<div class="gex-chart-wrap">' + window.secQqqTradingChart(e, true) + '</div>';
   // mountQqqChart needs #qqq-tv-chart in the DOM. Since this returns a string
   // that gets assigned to innerHTML, schedule the mount for after the DOM update.
   setTimeout(function() {
@@ -6590,7 +6652,7 @@ function setTimeframe(id, val) {
   var lay = activeLayout();
   var w = lay.widgets.find(w => w.id === id);
   if (w) w.timeframe = val;
-  save();
+  render();
 }
 
 function setLinkGroup(id, val) {
