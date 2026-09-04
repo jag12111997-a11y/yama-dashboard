@@ -5616,6 +5616,9 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
   window.secSynthesis = typeof secSynthesis !== 'undefined' ? secSynthesis : function() { return ''; };
   window.secCockpit = typeof secCockpit !== 'undefined' ? secCockpit : function() { return ''; };
   window.secNasdaqCommandCenter = typeof secNasdaqCommandCenter !== 'undefined' ? secNasdaqCommandCenter : function() { return ''; };
+  window.secQqqTradingChart = typeof secQqqTradingChart !== 'undefined' ? secQqqTradingChart : function() { return ''; };
+  window.secQqqGexProfile = typeof secQqqGexProfile !== 'undefined' ? secQqqGexProfile : function() { return ''; };
+  window.mountQqqChart = typeof mountQqqChart !== 'undefined' ? mountQqqChart : function() {};
   window.starChart = typeof starChart !== 'undefined' ? starChart : function() { return ''; };
   window.starCorrel = typeof starCorrel !== 'undefined' ? starCorrel : function() { return ''; };
   window.startLivePrices = typeof startLivePrices !== 'undefined' ? startLivePrices : function() {};
@@ -5758,125 +5761,19 @@ function renderClockWidget() {
 // ═══════════════════════════════════════════════
 
 function renderGexChart(e) {
-  var hist = (typeof FULL !== 'undefined' && FULL.length) ? FULL : (typeof H !== 'undefined' ? H : []);
-  if (!hist.length) return '<div class="loading">No history data</div>';
-
-  // Build candle data: open=prev_close, close=last, wicks synthesized
-  var candles = [];
-  for (var i = 0; i < hist.length; i++) {
-    var h = hist[i];
-    var q = (h.markets || {}).QQQ || {};
-    var cl = q.last || 0;
-    var op = q.prev_close || cl;
-    if (!cl) continue;
-    var body = Math.abs(cl - op);
-    var wick = body * 0.4 + Math.random() * body * 0.3; // synthetic wicks
-    var hi = Math.max(op, cl) + wick;
-    var lo = Math.min(op, cl) - wick * 0.8;
-    var dt = (h.entry_date || '').slice(5);
-    var sess = (h.session || '').toLowerCase();
-    candles.push({ o: op, h: hi, l: lo, c: cl, label: dt + (sess === 'pm' ? 'p' : 'a') });
+  // Use the IIFE's real interactive TradingView chart instead of the old static SVG.
+  if (typeof window.secQqqTradingChart !== 'function') {
+    return '<div class="loading">Chart engine not loaded</div>';
   }
-  if (!candles.length) return '<div class="loading">No price data</div>';
-
-  // Current GEX levels for horizontal lines
-  var gex = e.gex || {};
-  var lvl = gex.levels || {};
-  var curPrice = candles[candles.length - 1].c;
-  var gexLines = [];
-  if (lvl.call_wall) gexLines.push({ v: lvl.call_wall, label: 'CALL WALL', col: '#00e676' });
-  if (lvl.max_positive_gamma) gexLines.push({ v: lvl.max_positive_gamma, label: '+γ MAX', col: '#64ffda' });
-  if (gex.gamma_flip) gexLines.push({ v: gex.gamma_flip, label: 'GAMMA FLIP', col: '#ffd600' });
-  if (lvl.put_wall) gexLines.push({ v: lvl.put_wall, label: 'PUT WALL', col: '#ff453a' });
-  if (lvl.max_negative_gamma) gexLines.push({ v: lvl.max_negative_gamma, label: '-γ MAX', col: '#ff9100' });
-
-  // Y range from candles + GEX levels
-  var yMin = Infinity, yMax = -Infinity;
-  for (var ci = 0; ci < candles.length; ci++) {
-    if (candles[ci].l < yMin) yMin = candles[ci].l;
-    if (candles[ci].h > yMax) yMax = candles[ci].h;
-  }
-  for (var gi = 0; gi < gexLines.length; gi++) {
-    if (gexLines[gi].v < yMin) yMin = gexLines[gi].v;
-    if (gexLines[gi].v > yMax) yMax = gexLines[gi].v;
-  }
-  var yPad = (yMax - yMin) * 0.08 || 5;
-  yMin -= yPad; yMax += yPad;
-
-  var n = candles.length;
-  var W = 480, HT = 260;
-  var pad = { top: 12, right: 80, bottom: 28, left: 6 };
-  var plotW = W - pad.left - pad.right;
-  var plotH = HT - pad.top - pad.bottom;
-  var candleW = Math.max(3, Math.min(12, (plotW / n) * 0.7));
-  var gap = plotW / n;
-
-  function xC(idx) { return pad.left + gap * idx + gap / 2; }
-  function yC(v) { return pad.top + (1 - (v - yMin) / (yMax - yMin)) * plotH; }
-
-  var svg = '<svg viewBox="0 0 ' + W + ' ' + HT + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto">';
-  // Background
-  svg += '<rect x="' + pad.left + '" y="' + pad.top + '" width="' + plotW + '" height="' + plotH + '" fill="rgba(140,20,20,0.027)" rx="1"/>';
-
-  // Grid lines
-  var gridN = 5;
-  for (var g = 0; g <= gridN; g++) {
-    var gy = pad.top + (g / gridN) * plotH;
-    var gv = yMax - (g / gridN) * (yMax - yMin);
-    svg += '<line x1="' + pad.left + '" y1="' + gy.toFixed(1) + '" x2="' + (pad.left + plotW) + '" y2="' + gy.toFixed(1) + '" stroke="rgba(140,20,20,0.090)" stroke-width="0.5"/>';
-    svg += '<text x="' + (W - pad.right + 4) + '" y="' + (gy + 3).toFixed(1) + '" fill="rgba(140,20,20,0.400)" font-size="8" font-family="ui-monospace,monospace">$' + gv.toFixed(0) + '</text>';
-  }
-
-  // GEX level lines (behind candles)
-  for (var gl = 0; gl < gexLines.length; gl++) {
-    var lv = gexLines[gl];
-    var ly = yC(lv.v);
-    if (ly < pad.top || ly > pad.top + plotH) continue;
-    svg += '<line x1="' + pad.left + '" y1="' + ly.toFixed(1) + '" x2="' + (pad.left + plotW) + '" y2="' + ly.toFixed(1) + '" stroke="' + lv.col + '" stroke-width="1" stroke-dasharray="4,3" opacity="0.6"/>';
-    // Label on right
-    svg += '<rect x="' + (pad.left + plotW + 2) + '" y="' + (ly - 7).toFixed(1) + '" width="74" height="14" rx="2" fill="' + lv.col + '" opacity="0.15"/>';
-    svg += '<text x="' + (pad.left + plotW + 5) + '" y="' + (ly + 3).toFixed(1) + '" fill="' + lv.col + '" font-size="7.5" font-family="ui-monospace,monospace" font-weight="600">' + lv.label + ' $' + lv.v.toFixed(0) + '</text>';
-  }
-
-  // Candles
-  for (var k = 0; k < n; k++) {
-    var cd = candles[k];
-    var cx = xC(k);
-    var bullish = cd.c >= cd.o;
-    var color = bullish ? '#00e676' : '#ff453a';
-    var bodyTop = yC(Math.max(cd.o, cd.c));
-    var bodyBot = yC(Math.min(cd.o, cd.c));
-    var bodyH = Math.max(1, bodyBot - bodyTop);
-    // Wick
-    svg += '<line x1="' + cx.toFixed(1) + '" y1="' + yC(cd.h).toFixed(1) + '" x2="' + cx.toFixed(1) + '" y2="' + yC(cd.l).toFixed(1) + '" stroke="' + color + '" stroke-width="1"/>';
-    // Body
-    svg += '<rect x="' + (cx - candleW / 2).toFixed(1) + '" y="' + bodyTop.toFixed(1) + '" width="' + candleW.toFixed(1) + '" height="' + bodyH.toFixed(1) + '" fill="' + (bullish ? color : color) + '" rx="0.5" opacity="' + (bullish ? '0.9' : '0.85') + '"/>';
-  }
-
-  // Current price label on right
-  var cpY = yC(curPrice);
-  svg += '<rect x="' + (pad.left + plotW + 2) + '" y="' + (cpY - 8).toFixed(1) + '" width="74" height="16" rx="2" fill="#ff2be0"/>';
-  svg += '<text x="' + (pad.left + plotW + 6) + '" y="' + (cpY + 4).toFixed(1) + '" fill="#fff" font-size="9" font-family="ui-monospace,monospace" font-weight="700">$' + num(curPrice) + '</text>';
-
-  // X labels
-  var step = Math.max(1, Math.floor(n / 7));
-  for (var xi = 0; xi < n; xi += step) {
-    svg += '<text x="' + xC(xi).toFixed(1) + '" y="' + (HT - pad.bottom + 13) + '" fill="rgba(140,20,20,0.360)" font-size="7" text-anchor="middle" font-family="ui-monospace,monospace">' + candles[xi].label + '</text>';
-  }
-
-  svg += '</svg>';
-
-  // Regime badge
-  var regime = gex.regime || '';
-  var regCol = regime.indexOf('NEGATIVE') >= 0 ? '#ff453a' : regime.indexOf('POSITIVE') >= 0 ? '#00e676' : 'var(--dim)';
-
-  var html = '<h2>QQQ · GEX Levels</h2>';
-  html += svg;
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px;padding:5px 8px;background:rgba(140,20,20,0.036);border-radius:4px;font-size:11px">';
-  html += '<span style="color:' + regCol + ';font-weight:600;letter-spacing:1px">' + esc(regime || 'N/A') + '</span>';
-  html += '<span style="color:var(--dim)">NET ' + fmtBig(gex.net_gex || 0) + '</span>';
-  html += '</div>';
-
+  // secQqqTradingChart(e, bodyOnly) — bodyOnly=true strips the <section> wrapper
+  var html = window.secQqqTradingChart(e, true);
+  // mountQqqChart needs #qqq-tv-chart in the DOM. Since this returns a string
+  // that gets assigned to innerHTML, schedule the mount for after the DOM update.
+  setTimeout(function() {
+    if (document.getElementById('qqq-tv-chart')) {
+      window.mountQqqChart(e);
+    }
+  }, 0);
   return html;
 }
 
