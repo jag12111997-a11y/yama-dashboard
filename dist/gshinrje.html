@@ -115,6 +115,7 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
   position: absolute; display: flex; flex-direction: column;
   border-radius: 8px; border: 1px solid var(--border); background: var(--bg-widget);
   box-shadow: 0 4px 20px rgba(0,0,0,0.3); transition: box-shadow 0.15s;
+  overflow: hidden; min-height: 0;
 }
 .widget:hover { box-shadow: 0 6px 28px rgba(0,0,0,0.4); }
 .widget-header {
@@ -153,23 +154,27 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 .widget.locked-widget .widget-header { cursor: default; }
 .widget-body {
   flex: 1; display: flex; align-items: center; justify-content: center;
-  overflow: hidden; padding: 12px;
+  overflow: hidden; padding: 12px; min-height: 0;
 }
 .widget-body .placeholder { text-align: center; }
 .widget-body .placeholder .name { font-size: 14px; font-weight: 500; color: rgba(140,40,40,0.25); }
 .widget-body .placeholder .question { margin-top: 4px; font-size: 11px; color: var(--text-ghost); max-width: 200px; line-height: 1.4; }
 .resize-handle {
-  position: absolute; bottom: 0; right: 0; width: 16px; height: 16px;
-  cursor: se-resize; opacity: 0.15; transition: opacity 0.15s;
+  position: absolute; width: 16px; height: 16px;
+  opacity: 0.15; transition: opacity 0.15s;
 }
+.resize-handle.se { bottom: 0; right: 0; cursor: se-resize; }
+.resize-handle.sw { bottom: 0; left: 0; cursor: sw-resize; }
+.resize-handle.ne { top: 0; right: 0; cursor: ne-resize; }
+.resize-handle.nw { top: 0; left: 0; cursor: nw-resize; }
 .widget:hover .resize-handle { opacity: 0.3; }
 
 /* ── Add Widget Panel ── */
 .panel-backdrop { position: fixed; inset: 0; z-index: 100; }
 .add-panel {
-  position: fixed; left: 0; top: 40px; bottom: 0; z-index: 110; width: 280px;
-  display: flex; flex-direction: column; border-right: 1px solid var(--border);
-  background: var(--bg-panel); box-shadow: 4px 0 30px rgba(0,0,0,0.4);
+  position: fixed; right: 0; top: 40px; bottom: 0; z-index: 110; width: 280px;
+  display: flex; flex-direction: column; border-left: 1px solid var(--border);
+  background: var(--bg-panel); box-shadow: -4px 0 30px rgba(0,0,0,0.4);
 }
 .add-panel-header {
   display: flex; align-items: center; justify-content: space-between;
@@ -289,10 +294,11 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
   --purple:#8b3a3a; --magenta:#cc1111; --orange:#cc1111; --teal:#00e5cc;
   font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
   color: var(--txt);
-  align-items: flex-start;
+  align-items: stretch;
   justify-content: flex-start;
   overflow-y: auto;
   overflow-x: hidden;
+  flex-direction: column;
 }
 
 
@@ -304,7 +310,7 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 .widget-body .up { color:var(--up); }
 .widget-body .down { color:var(--down); }
 .widget-body .flat { color:var(--flat); }
-.widget-body .read { margin-top:12px; padding-top:10px; border-top:1px dashed var(--line); font-size:12.5px; color:var(--txt); }
+.widget-body .read { margin-top:auto; padding-top:10px; border-top:1px dashed var(--line); font-size:12.5px; color:var(--txt); width:100%; flex-shrink:0; }
 .widget-body .read b { color:var(--dim); font-weight:400; letter-spacing:1px; font-size:10.5px; text-transform:uppercase; }
 .widget-body details > summary { cursor:pointer; list-style:none; user-select:none; display:flex; align-items:center; gap:7px; }
 .widget-body details > summary::-webkit-details-marker { display:none; }
@@ -4218,6 +4224,32 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
           ema9Series.setData(qqqEma(dailyCandles, 9));
           ema20Series.setData(qqqEma(dailyCandles, 20));
         }
+
+        // Daily volume histogram from history venue data
+        if (QQQ_CHART_VIEW.pane === "volume") {
+          var volData = [];
+          hist.forEach(function(entry) {
+            if (!entry.entry_date) return;
+            var day = String(entry.entry_date).slice(0,10);
+            var vol = 0;
+            try { vol = (entry.venue || {}).total_volume || 0; } catch(ex) {}
+            if (!vol) {
+              // Try options total volume as fallback
+              try { vol = (entry.options || {}).total_volume || 0; } catch(ex) {}
+            }
+            var q = null;
+            (entry.watchlist || []).forEach(function(w) { if (w.symbol === "QQQ") q = w; });
+            var up = q ? (q.pct_change || 0) >= 0 : true;
+            if (vol > 0) volData.push({ time: day, value: vol, color: up ? "rgba(0,230,118,.55)" : "rgba(255,69,58,.55)" });
+          });
+          if (volData.length) {
+            indicatorSeries = chart.addSeries(TV.HistogramSeries, {
+              title: "Daily Volume", priceFormat: { type:"volume" },
+              priceLineVisible: false, lastValueVisible: false
+            }, 1);
+            indicatorSeries.setData(volData);
+          }
+        }
       } else {
         series = chart.addSeries(TV.LineSeries, {
           color: "#ff2be0", lineWidth: 2, priceLineVisible: false,
@@ -5818,9 +5850,10 @@ function renderWidgetContent(defId) {
     case 'implied-distribution': return renderImpliedDistribution(e);
     case 'similar-sessions':     return renderSimilarSessions(e);
     case 'regime-history':       return renderRegimeHistory(e);
-    case 'observation-notes':    return renderObservationNotes(e);
-    case 'trade-journal':        return renderTradeJournal(e);
-    case 'process-scorecard':    return renderProcessScorecard(e);
+    case 'observation-notes':    return renderNotebook(e);
+    case 'trade-journal':        return renderNotebook(e);
+    case 'process-scorecard':    return renderNotebook(e);
+    case 'trading-notebook':     return renderNotebook(e);
     case 'alerts':               return renderAlerts(e);
     case 'clock-session':        return renderClockWidget();
     case 'notes':                return renderNotes(e);
@@ -5862,7 +5895,15 @@ function renderGexChart(e) {
     return '<div class="loading">Chart engine not loaded</div>';
   }
   // secQqqTradingChart(e, bodyOnly) — bodyOnly=true strips the <section> wrapper
-  var html = '<div class="gex-chart-wrap">' + window.secQqqTradingChart(e, true) + '</div>';
+  var html = '<div class="gex-chart-wrap" style="flex:1;min-height:0">' + window.secQqqTradingChart(e, true) + '</div>';
+
+  // Collapsible notebook panel at the bottom of the chart
+  html += '<details class="gex-notebook-panel" style="flex-shrink:0;border-top:1px solid var(--line);margin-top:4px">';
+  html += '<summary style="cursor:pointer;padding:4px 8px;font-size:10px;color:var(--accent);letter-spacing:1px;user-select:none;list-style:none;display:flex;align-items:center;gap:6px">';
+  html += '<span style="font-size:8px">▶</span> TRADING NOTEBOOK</summary>';
+  html += '<div style="padding:6px 8px;max-height:220px;overflow-y:auto">' + renderNotebook(e) + '</div>';
+  html += '</details>';
+
   // mountQqqChart needs #qqq-tv-chart in the DOM. Since this returns a string
   // that gets assigned to innerHTML, schedule the mount for after the DOM update.
   setTimeout(function() {
@@ -6164,69 +6205,15 @@ function renderRegimeHistory(e) {
 }
 
 function renderObservationNotes(e) {
-  var html = '<h2>Observation Notes</h2>';
-  var key = 'gshinrje-notes-' + (e.entry_date || 'today');
-
-  html += '<div style="font-size:11px;color:var(--dim);margin-bottom:8px">Session: ' + esc(e.entry_date || '') + ' ' + esc(e.session || '') + '</div>';
-  html += '<textarea id="obsNotes" style="width:100%;height:120px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:4px;padding:8px;font:12px ui-monospace,monospace;resize:vertical" placeholder="What do you notice about today\'s session?"></textarea>';
-  html += '<div style="display:flex;justify-content:flex-end;gap:8px;margin-top:6px">';
-  html += '<button onclick="(function(){try{localStorage.setItem(\'' + key + '\',document.getElementById(\'obsNotes\').value);document.getElementById(\'obsSaved\').textContent=\'Saved!\'}catch(e){}})()" style="background:var(--line);color:var(--txt);border:none;padding:4px 12px;border-radius:4px;font-size:11px;cursor:pointer">Save</button>';
-  html += '<span id="obsSaved" style="font-size:11px;color:var(--up)"></span>';
-  html += '</div>';
-
-  // Load existing
-  html += '<script>try{var n=localStorage.getItem("' + key + '");if(n)document.getElementById("obsNotes").value=n}catch(e){}<\/script>';
-  return html;
+  return renderNotebook(e);
 }
 
 function renderTradeJournal(e) {
-  var html = '<h2>Trade Journal</h2>';
-  html += '<div style="font-size:11px;color:var(--dim);margin-bottom:8px">' + esc(e.entry_date || '') + ' · ' + esc(e.session || '') + '</div>';
-
-  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:8px">';
-  var fields = ['Ticker', 'Direction', 'Entry', 'Exit', 'Size', 'P/L'];
-  fields.forEach(function(f) {
-    html += '<input placeholder="' + f + '" style="background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:4px 6px;font-size:11px" />';
-  });
-  html += '</div>';
-
-  html += '<textarea placeholder="Thesis & notes..." style="width:100%;height:60px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:4px;padding:6px;font:11px ui-monospace,monospace;resize:vertical"></textarea>';
-
-  html += '<div style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)">';
-  html += '<div style="font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Session Context</div>';
-  var qqq = (e.markets || {}).QQQ || {};
-  var vix = (e.markets || {}).VIX || {};
-  html += row('QQQ', '$' + num(qqq.last || 0) + ' (' + signed(qqq.pct_change || 0) + '%)');
-  html += row('VIX', num(vix.last || 0));
-  html += '</div>';
-  return html;
+  return renderNotebook(e);
 }
 
 function renderProcessScorecard(e) {
-  var html = '<h2>Process Scorecard</h2>';
-  html += '<div style="font-size:11px;color:var(--dim);margin-bottom:10px">Rate your process today (not your P/L)</div>';
-
-  var items = [
-    { name: 'Waited for setup', icon: '⏳' },
-    { name: 'Followed thesis', icon: '🎯' },
-    { name: 'Sized correctly', icon: '📐' },
-    { name: 'Managed risk', icon: '🛡' },
-    { name: 'No revenge trades', icon: '🧘' },
-    { name: 'Accepted outcome', icon: '✓' }
-  ];
-
-  items.forEach(function(item, i) {
-    html += '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line)">';
-    html += '<span style="font-size:14px">' + item.icon + '</span>';
-    html += '<span style="flex:1;font-size:12px;color:var(--txt)">' + item.name + '</span>';
-    html += '<div style="display:flex;gap:2px">';
-    for (var s = 1; s <= 5; s++) {
-      html += '<div style="width:16px;height:16px;border-radius:3px;background:var(--line);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--faint)" title="' + s + '/5">' + s + '</div>';
-    }
-    html += '</div></div>';
-  });
-
-  return html;
+  return renderNotebook(e);
 }
 
 function renderAlerts(e) {
@@ -6256,6 +6243,21 @@ function renderAlerts(e) {
   var distPut = levels.put_wall && qqq.last ? Math.abs((qqq.last - levels.put_wall) / levels.put_wall * 100) : 99;
   if (distPut < 0.3) alerts.push({ severity: 'high', msg: 'Price testing put wall ($' + num(levels.put_wall) + ')' });
 
+  // Check custom user alerts
+  try {
+    var custom = JSON.parse(localStorage.getItem('gshinrje-custom-alerts') || '[]');
+    custom.forEach(function(ca) {
+      var price = qqq.last || 0;
+      if (ca.dir === 'above' && price >= ca.price) {
+        alerts.push({ severity: 'high', msg: '⚡ ' + ca.label + ' — QQQ above $' + num(ca.price), custom: true });
+      } else if (ca.dir === 'below' && price <= ca.price) {
+        alerts.push({ severity: 'high', msg: '⚡ ' + ca.label + ' — QQQ below $' + num(ca.price), custom: true });
+      } else {
+        alerts.push({ severity: 'low', msg: '⏸ ' + ca.label + ' — watching $' + num(ca.price) + ' (' + ca.dir + ')', custom: true });
+      }
+    });
+  } catch(ex) {}
+
   if (alerts.length === 0) {
     alerts.push({ severity: 'low', msg: 'All quiet — no triggered alerts' });
   }
@@ -6263,27 +6265,125 @@ function renderAlerts(e) {
   alerts.sort(function(a, b) { var order = { high: 0, med: 1, low: 2 }; return (order[a.severity] || 2) - (order[b.severity] || 2); });
 
   alerts.forEach(function(a) {
-    var col = a.severity === 'high' ? 'var(--down)' : a.severity === 'med' ? 'var(--warn)' : 'var(--up)';
     var dot = a.severity === 'high' ? '🔴' : a.severity === 'med' ? '🟡' : '🟢';
     html += '<div style="display:flex;align-items:flex-start;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:12px">';
     html += '<span style="font-size:10px;flex:none;margin-top:2px">' + dot + '</span>';
-    html += '<span style="color:var(--txt)">' + esc(a.msg) + '</span>';
+    html += '<span style="flex:1;color:var(--txt)">' + esc(a.msg) + '</span>';
+    if (a.custom) html += '<span onclick="removeCustomAlert(\'' + esc(a.label) + '\')" style="cursor:pointer;font-size:10px;color:var(--faint)" title="Remove">✕</span>';
     html += '</div>';
   });
+
+  // Add custom alert form
+  html += '<div style="margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)">';
+  html += '<div style="font-size:10px;color:var(--dim);letter-spacing:1px;text-transform:uppercase;margin-bottom:6px">Add Price Alert</div>';
+  html += '<div style="display:flex;gap:4px;align-items:center">';
+  html += '<input id="alertLabel" placeholder="Label" style="flex:2;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:4px 5px;font-size:10px" />';
+  html += '<input id="alertPrice" placeholder="Price" type="number" step="0.01" style="flex:1;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:4px 5px;font-size:10px" />';
+  html += '<select id="alertDir" style="background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:4px 2px;font-size:10px"><option value="above">Above</option><option value="below">Below</option></select>';
+  html += '<button onclick="addCustomAlert()" style="background:var(--accent);color:#000;border:none;padding:4px 8px;border-radius:3px;font-size:10px;cursor:pointer;font-weight:600">+</button>';
+  html += '</div></div>';
 
   return html;
 }
 
+function addCustomAlert() {
+  var label = document.getElementById('alertLabel');
+  var price = document.getElementById('alertPrice');
+  var dir = document.getElementById('alertDir');
+  if (!label || !price || !label.value.trim() || !price.value) return;
+  try {
+    var custom = JSON.parse(localStorage.getItem('gshinrje-custom-alerts') || '[]');
+    custom.push({ label: label.value.trim(), price: parseFloat(price.value), dir: dir.value });
+    localStorage.setItem('gshinrje-custom-alerts', JSON.stringify(custom));
+    render();
+  } catch(ex) {}
+}
+
+function removeCustomAlert(label) {
+  try {
+    var custom = JSON.parse(localStorage.getItem('gshinrje-custom-alerts') || '[]');
+    custom = custom.filter(function(a) { return a.label !== label; });
+    localStorage.setItem('gshinrje-custom-alerts', JSON.stringify(custom));
+    render();
+  } catch(ex) {}
+}
+
 function renderNotes(e) {
-  var html = '<h2>Quick Notes</h2>';
-  html += '<textarea id="quickNotes" style="width:100%;height:160px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:4px;padding:8px;font:12px ui-monospace,monospace;resize:vertical" placeholder="Scratch pad..."></textarea>';
-  html += '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:6px">';
-  html += '<span style="font-size:10px;color:var(--faint)">Saved to browser storage</span>';
-  html += '<button onclick="(function(){try{localStorage.setItem(\'gshinrje-quicknotes\',document.getElementById(\'quickNotes\').value);document.getElementById(\'notesSaved\').textContent=\'✓\'}catch(e){}})()" style="background:var(--line);color:var(--txt);border:none;padding:3px 10px;border-radius:3px;font-size:11px;cursor:pointer">Save</button>';
+  return renderNotebook(e);
+}
+
+// ── Combined Notebook Widget (Trade Journal + Notes + Scorecard + Observations) ──
+function renderNotebook(e) {
+  var html = '';
+  html += '<div class="notebook-tabs" style="display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:8px;flex-shrink:0">';
+  var tabs = [
+    { id:'nb-journal', label:'Journal' },
+    { id:'nb-notes', label:'Notes' },
+    { id:'nb-scorecard', label:'Scorecard' },
+    { id:'nb-observations', label:'Observations' }
+  ];
+  tabs.forEach(function(t, i) {
+    html += '<button onclick="switchNotebookTab(\'' + t.id + '\')" id="nbt-' + t.id + '" style="flex:1;padding:6px 4px;border:none;background:' + (i===0?'rgba(0,229,204,0.10)':'transparent') + ';color:' + (i===0?'var(--accent)':'var(--dim)') + ';font-size:10px;letter-spacing:0.5px;cursor:pointer;font-family:var(--font);border-bottom:2px solid ' + (i===0?'var(--accent)':'transparent') + '">' + t.label + '</button>';
+  });
   html += '</div>';
-  html += '<span id="notesSaved" style="font-size:11px;color:var(--up)"></span>';
-  html += '<script>try{var n=localStorage.getItem("gshinrje-quicknotes");if(n)document.getElementById("quickNotes").value=n}catch(e){}<\/script>';
+
+  // Journal tab
+  html += '<div id="nb-journal" class="nb-pane" style="width:100%">';
+  html += '<div style="font-size:11px;color:var(--dim);margin-bottom:6px">' + esc(e.entry_date || '') + ' · ' + esc(e.session || '') + '</div>';
+  html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:6px">';
+  ['Ticker','Direction','Entry','Exit','Size','P/L'].forEach(function(f) {
+    html += '<input placeholder="' + f + '" style="background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:3px 5px;font-size:10px" />';
+  });
+  html += '</div>';
+  html += '<textarea placeholder="Thesis & notes..." style="width:100%;height:50px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:5px;font:10px ui-monospace,monospace;resize:vertical"></textarea>';
+  var qqq = (e.markets || {}).QQQ || {};
+  var vix = (e.markets || {}).VIX || {};
+  html += '<div style="margin-top:6px;font-size:10px;color:var(--dim)">QQQ $' + num(qqq.last||0) + ' (' + signed(qqq.pct_change||0) + '%) · VIX ' + num(vix.last||0) + '</div>';
+  html += '</div>';
+
+  // Notes tab
+  var notesKey = 'gshinrje-quicknotes';
+  html += '<div id="nb-notes" class="nb-pane" style="display:none;width:100%">';
+  html += '<textarea id="nbQuickNotes" style="width:100%;height:120px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:6px;font:11px ui-monospace,monospace;resize:vertical" placeholder="Scratch pad..."></textarea>';
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:4px"><button onclick="(function(){try{localStorage.setItem(\'' + notesKey + '\',document.getElementById(\'nbQuickNotes\').value)}catch(e){}})()" style="background:var(--line);color:var(--txt);border:none;padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer">Save</button></div>';
+  html += '</div>';
+
+  // Scorecard tab
+  html += '<div id="nb-scorecard" class="nb-pane" style="display:none;width:100%">';
+  html += '<div style="font-size:10px;color:var(--dim);margin-bottom:6px">Rate your process (not your P/L)</div>';
+  [{n:'Waited for setup',i:'⏳'},{n:'Followed thesis',i:'🎯'},{n:'Sized correctly',i:'📐'},{n:'Managed risk',i:'🛡'},{n:'No revenge trades',i:'🧘'},{n:'Accepted outcome',i:'✓'}].forEach(function(item) {
+    html += '<div style="display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--line)">';
+    html += '<span style="font-size:12px">' + item.i + '</span><span style="flex:1;font-size:11px">' + item.n + '</span>';
+    html += '<div style="display:flex;gap:2px">';
+    for (var s=1;s<=5;s++) html += '<div onclick="this.style.background=\'var(--accent)\';this.style.color=\'#000\'" style="width:14px;height:14px;border-radius:2px;background:var(--line);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:8px;color:var(--faint)" title="'+s+'/5">'+s+'</div>';
+    html += '</div></div>';
+  });
+  html += '</div>';
+
+  // Observations tab
+  var obsKey = 'gshinrje-notes-' + (e.entry_date || 'today');
+  html += '<div id="nb-observations" class="nb-pane" style="display:none;width:100%">';
+  html += '<div style="font-size:10px;color:var(--dim);margin-bottom:4px">Session: ' + esc(e.entry_date||'') + ' ' + esc(e.session||'') + '</div>';
+  html += '<textarea id="nbObsNotes" style="width:100%;height:100px;background:var(--panel);color:var(--txt);border:1px solid var(--line);border-radius:3px;padding:6px;font:11px ui-monospace,monospace;resize:vertical" placeholder="What do you notice?"></textarea>';
+  html += '<div style="display:flex;justify-content:flex-end;margin-top:4px"><button onclick="(function(){try{localStorage.setItem(\'' + obsKey + '\',document.getElementById(\'nbObsNotes\').value)}catch(e){}})()" style="background:var(--line);color:var(--txt);border:none;padding:3px 8px;border-radius:3px;font-size:10px;cursor:pointer">Save</button></div>';
+  html += '</div>';
+
+  // Load saved notes
+  html += '<script>try{var n=localStorage.getItem("' + notesKey + '");if(n&&document.getElementById("nbQuickNotes"))document.getElementById("nbQuickNotes").value=n}catch(e){}try{var o=localStorage.getItem("' + obsKey + '");if(o&&document.getElementById("nbObsNotes"))document.getElementById("nbObsNotes").value=o}catch(e){}<\/script>';
+
   return html;
+}
+
+function switchNotebookTab(id) {
+  document.querySelectorAll('.nb-pane').forEach(function(p) { p.style.display = 'none'; });
+  var target = document.getElementById(id);
+  if (target) target.style.display = 'block';
+  document.querySelectorAll('.notebook-tabs button').forEach(function(b) {
+    var isActive = b.id === 'nbt-' + id;
+    b.style.background = isActive ? 'rgba(0,229,204,0.10)' : 'transparent';
+    b.style.color = isActive ? 'var(--accent)' : 'var(--dim)';
+    b.style.borderBottom = '2px solid ' + (isActive ? 'var(--accent)' : 'transparent');
+  });
 }
 
 
@@ -6319,7 +6419,6 @@ var CATEGORIES = [
   { id:'participation', label:'Participation & Flow', question:'Who appears active, and is participation strengthening or weakening?', widgets:[
     { id:'volume-pace',           name:'Volume Pace',             question:'Is volume above or below normal?',             dw:340, dh:240 },
     { id:'buyer-seller-pressure', name:'Buyer / Seller Pressure', question:'Who is more aggressive?',                      dw:360, dh:280 },
-    { id:'breadth',               name:'Breadth',                 question:'Is the move broad or narrow?',                 dw:380, dh:260 },
     { id:'tape-behavior',         name:'Tape Behavior',           question:'What does the tape reveal?',                   dw:360, dh:300 },
   ]},
   { id:'options', label:'Options & Greeks', question:'Where is options exposure concentrated and how might dealers respond?', widgets:[
@@ -6366,15 +6465,12 @@ var CATEGORIES = [
   ]},
   { id:'process', label:'Process & Review', question:'What was observed, why did it matter, and what was learned?', widgets:[
     { id:'thesis-builder',        name:'Thesis Builder',          question:'What is the current thesis?',                   dw:400, dh:320 },
-    { id:'observation-notes',     name:'Observation Notes',       question:'What did I notice?',                            dw:360, dh:280 },
-    { id:'trade-journal',         name:'Trade Journal',           question:'What happened and what did I learn?',           dw:420, dh:340 },
-    { id:'process-scorecard',     name:'Process Scorecard',       question:'Am I following my process?',                    dw:380, dh:280 },
+    { id:'trading-notebook',      name:'Trading Notebook',        question:'Journal, notes, scorecard & observations',      dw:440, dh:380 },
   ]},
   { id:'utilities', label:'Utilities', question:'Supporting tools', widgets:[
     { id:'watchlist',             name:'Watchlist',               question:'Which assets am I tracking?',                   dw:300, dh:400 },
     { id:'alerts',                name:'Alerts',                  question:'What conditions am I watching for?',            dw:340, dh:280 },
     { id:'clock-session',         name:'Clock / Session',         question:'What session are we in?',                       dw:240, dh:160 },
-    { id:'notes',                 name:'Notes',                   question:'Freeform notes',                                dw:320, dh:260 },
   ]},
 ];
 
@@ -6418,11 +6514,7 @@ function renderTabs() {
   var bar = document.getElementById('tabBar');
   var html = '';
 
-  // + Widget button
-  html += '<button class="btn-add-widget" onclick="togglePanel()"><span style="font-size:14px">+</span> Widget</button>';
-  html += '<div class="tab-divider"></div>';
-
-  // Layout tabs
+  // Layout tabs (+ Widget button moved to right side)
   state.layouts.forEach(lay => {
     var isActive = lay.id === state.activeLayoutId;
     html += `<button class="tab ${isActive ? 'active' : ''}" onclick="switchTab('${lay.id}')" ondblclick="startRenameTab('${lay.id}')" oncontextmenu="tabContext(event,'${lay.id}')">`;
@@ -6447,6 +6539,8 @@ function renderTabs() {
   html += 'Layouts</button>';
 
   html += '<div class="app-title">གཤིན་རྗེ</div>';
+  html += '<div class="tab-divider" style="margin-left:8px"></div>';
+  html += '<button class="btn-add-widget" onclick="togglePanel()"><span style="font-size:14px">+</span> Widget</button>';
   bar.innerHTML = html;
 
   // Focus rename input
@@ -6588,8 +6682,11 @@ function renderCanvas() {
     // Body
     html += `<div class="widget-body">${renderWidgetContent(w.definitionId)}</div>`;
 
-    // Resize handle
-    html += `<div class="resize-handle" onmousedown="startResize(event, '${w.id}')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
+    // Resize handles — all 4 corners
+    html += `<div class="resize-handle se" onmousedown="startResize(event, '${w.id}', 'se')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
+    html += `<div class="resize-handle sw" onmousedown="startResize(event, '${w.id}', 'sw')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4);transform:scaleX(-1)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
+    html += `<div class="resize-handle ne" onmousedown="startResize(event, '${w.id}', 'ne')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4);transform:scaleY(-1)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
+    html += `<div class="resize-handle nw" onmousedown="startResize(event, '${w.id}', 'nw')"><svg viewBox="0 0 16 16" style="width:100%;height:100%;color:rgba(140,40,40,0.4);transform:scale(-1,-1)"><path d="M14 14L14 6M14 14L6 14" stroke="currentColor" stroke-width="1.5" fill="none" stroke-linecap="round"/></svg></div>`;
 
     html += '</div>'; // widget
   });
@@ -6743,26 +6840,45 @@ function endDrag() {
 
 // ── Resize ──
 var resizeState = null;
-function startResize(e, id) {
+function startResize(e, id, corner) {
   e.preventDefault();
   e.stopPropagation();
   var w = activeLayout().widgets.find(w => w.id === id);
   if (!w || w.locked) return;
-  resizeState = { id, startX: e.clientX, startY: e.clientY, origW: w.w, origH: w.h };
+  resizeState = { id, corner: corner || 'se', startX: e.clientX, startY: e.clientY, origW: w.w, origH: w.h, origX: w.x, origY: w.y };
   document.addEventListener('mousemove', onResize);
   document.addEventListener('mouseup', endResize);
 }
 
 function onResize(e) {
   if (!resizeState) return;
-  var dw = e.clientX - resizeState.startX;
-  var dh = e.clientY - resizeState.startY;
-  var nw = snap(Math.max(200, resizeState.origW + dw));
-  var nh = snap(Math.max(120, resizeState.origH + dh));
+  var dx = e.clientX - resizeState.startX;
+  var dy = e.clientY - resizeState.startY;
+  var nw, nh, nx, ny;
+  var c = resizeState.corner;
+  if (c === 'se') {
+    nw = snap(Math.max(200, resizeState.origW + dx));
+    nh = snap(Math.max(120, resizeState.origH + dy));
+    nx = resizeState.origX; ny = resizeState.origY;
+  } else if (c === 'sw') {
+    nw = snap(Math.max(200, resizeState.origW - dx));
+    nh = snap(Math.max(120, resizeState.origH + dy));
+    nx = snap(resizeState.origX + resizeState.origW - nw); ny = resizeState.origY;
+  } else if (c === 'ne') {
+    nw = snap(Math.max(200, resizeState.origW + dx));
+    nh = snap(Math.max(120, resizeState.origH - dy));
+    nx = resizeState.origX; ny = snap(resizeState.origY + resizeState.origH - nh);
+  } else { // nw
+    nw = snap(Math.max(200, resizeState.origW - dx));
+    nh = snap(Math.max(120, resizeState.origH - dy));
+    nx = snap(resizeState.origX + resizeState.origW - nw);
+    ny = snap(resizeState.origY + resizeState.origH - nh);
+  }
+  nx = Math.max(0, nx); ny = Math.max(0, ny);
   var el = document.querySelector(`.widget[data-wid="${resizeState.id}"]`);
-  if (el) { el.style.width = nw + 'px'; el.style.height = nh + 'px'; }
+  if (el) { el.style.width = nw + 'px'; el.style.height = nh + 'px'; el.style.left = nx + 'px'; el.style.top = ny + 'px'; }
   var w = activeLayout().widgets.find(w => w.id === resizeState.id);
-  if (w) { w.w = nw; w.h = nh; }
+  if (w) { w.w = nw; w.h = nh; w.x = nx; w.y = ny; }
 }
 
 function endResize() {
