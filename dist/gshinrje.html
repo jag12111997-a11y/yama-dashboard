@@ -4113,8 +4113,10 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
     var gexTrailSeries = [];
     var trailRows = M.latest && LIVE_GEX_INTRADAY && Array.isArray(LIVE_GEX_INTRADAY.points)
       ? LIVE_GEX_INTRADAY.points.slice() : [];
-    var hasGexTrail = candles.length && trailRows.length >= 2;
-    if (candles.length) {
+    var hasGexTrail = candles.length >= 10 && trailRows.length >= 2;
+    // Need enough live candles for a meaningful intraday chart;
+    // otherwise fall through to daily OHLC candles from HISTORY_DATA.
+    if (candles.length >= 10) {
       series = chart.addSeries(TV.CandlestickSeries, {
         upColor: "#00e676", downColor: "#ff453a",
         borderUpColor: "#00e676", borderDownColor: "#ff453a",
@@ -4356,7 +4358,7 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
       el.addEventListener(name, interactionHandler, { passive:true });
     });
     QQQ_TV = { chart: chart, resize: ro, quoteSeries: null,
-               series: series, candleSeries: candles.length ? series : null,
+               series: series, candleSeries: candles.length >= 10 ? series : null,
                rawCandles: candles, ema9Series: ema9Series, ema20Series: ema20Series,
                indicatorSeries: indicatorSeries, paneType: QQQ_CHART_VIEW.pane,
                gexTrailSeries: gexTrailSeries,
