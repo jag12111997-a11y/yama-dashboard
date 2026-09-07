@@ -191,18 +191,6 @@ html, body { height: 100%; overflow: hidden; font-family: var(--font); backgroun
 .search-box::placeholder { color: rgba(160,80,80,0.35); }
 .search-box:focus { background: rgba(140,20,20,0.15); }
 .cat-list { flex: 1; overflow-y: auto; padding: 4px 8px 16px; }
-.widget-group { margin-top: 8px; }
-.widget-group:first-child { margin-top: 2px; }
-.widget-group-header {
-  display: flex; align-items: baseline; justify-content: space-between;
-  padding: 7px 8px 5px; border-bottom: 1px solid var(--border-light);
-}
-.widget-group-title {
-  font-size: 10px; font-weight: 700; color: var(--accent);
-  letter-spacing: 0.12em; text-transform: uppercase;
-}
-.widget-group-count { font-size: 9px; color: var(--text-muted); }
-.widget-group-note { padding: 5px 8px 3px; font-size: 9px; line-height: 1.35; color: var(--text-ghost); }
 .cat-btn {
   display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px;
   border-radius: 6px; border: none; cursor: pointer; text-align: left;
@@ -5572,6 +5560,45 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
     // --------------------
     var BASE = "https://finnhub.io/api/v1/quote?symbol=";
     var LIVE = {};              // symbol -> {last, pct, srcTime(ms)}
+
+    // ── QQQ Buy / Sell volume tracker ──────────────────────────
+    // Approximates buy vs sell pressure by tracking QQQ price direction
+    // on each poll. Price up → buy tick, price down → sell tick.
+    // Resets at midnight ET each day.
+    var QQQ_VOL_TRACKER = {
+      buyTicks: 0, sellTicks: 0,
+      lastPrice: null,
+      resetDate: null,
+      history: []          // {time, buy, sell} snapshots for the mini sparkline
+    };
+    window.QQQ_VOL_TRACKER = QQQ_VOL_TRACKER;
+
+    function trackQqqVolume(price) {
+      if (typeof price !== 'number' || price <= 0) return;
+      // Reset at new ET trading day
+      var etDate = new Date().toLocaleDateString('en-US', { timeZone: 'America/New_York' });
+      if (QQQ_VOL_TRACKER.resetDate !== etDate) {
+        QQQ_VOL_TRACKER.buyTicks = 0;
+        QQQ_VOL_TRACKER.sellTicks = 0;
+        QQQ_VOL_TRACKER.lastPrice = null;
+        QQQ_VOL_TRACKER.history = [];
+        QQQ_VOL_TRACKER.resetDate = etDate;
+      }
+      if (QQQ_VOL_TRACKER.lastPrice !== null) {
+        var delta = price - QQQ_VOL_TRACKER.lastPrice;
+        if (delta > 0) QQQ_VOL_TRACKER.buyTicks++;
+        else if (delta < 0) QQQ_VOL_TRACKER.sellTicks++;
+        // snapshot every tick for sparkline
+        QQQ_VOL_TRACKER.history.push({
+          time: Date.now(),
+          buy: QQQ_VOL_TRACKER.buyTicks,
+          sell: QQQ_VOL_TRACKER.sellTicks
+        });
+        // keep last 200 snapshots max
+        if (QQQ_VOL_TRACKER.history.length > 200) QQQ_VOL_TRACKER.history.shift();
+      }
+      QQQ_VOL_TRACKER.lastPrice = price;
+    }
     var everOk = false;
 
     // Every symbol the latest session shows: the watchlist rows (stars + the
@@ -5604,6 +5631,7 @@ var H = (window.MARKET_DASH_HISTORY || []).slice();
             pct:  (typeof q.dp === "number") ? q.dp : null,
             srcTime: (typeof q.t === "number" && q.t > 0) ? q.t * 1000 : null
           };
+          if (sym === "QQQ") trackQqqVolume(q.c);
         })
         .catch(function () { /* offline / blocked / bad symbol -> keep snapshot */ });
     }
@@ -5866,6 +5894,7 @@ function renderWidgetContent(defId) {
     case 'trade-journal':        return renderNotebook(e);
     case 'process-scorecard':    return renderNotebook(e);
     case 'trading-notebook':     return renderNotebook(e);
+    case 'qqq-volume':           return renderQqqVolume();
     case 'alerts':               return renderAlerts(e);
     case 'clock-session':        return renderClockWidget();
     case 'notes':                return renderNotes(e);
@@ -5875,6 +5904,76 @@ function renderWidgetContent(defId) {
       return '<div class="loading">Widget: ' + esc(defId) + '</div>';
   }
 }
+
+// ── QQQ Buy / Sell Volume widget ──────────────────────────
+function renderQqqVolume() {
+  var t = window.QQQ_VOL_TRACKER || { buyTicks: 0, sellTicks: 0, history: [] };
+  var buy = t.buyTicks, sell = t.sellTicks;
+  var total = buy + sell || 1;
+  var buyPct = Math.round(buy / total * 100);
+  var sellPct = 100 - buyPct;
+  var maxBar = Math.max(buy, sell, 1);
+
+  // Colors
+  var buyCol = 'var(--up, #26a69a)';
+  var sellCol = 'var(--dn, #ef5350)';
+
+  // Bar heights (max 160px)
+  var maxH = 160;
+  var buyH = Math.round((buy / maxBar) * maxH);
+  var sellH = Math.round((sell / maxBar) * maxH);
+
+  // Session status
+  var etH = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', hour: 'numeric', hour12: false }));
+  var etM = parseInt(new Date().toLocaleString('en-US', { timeZone: 'America/New_York', minute: 'numeric' }));
+  var marketOpen = (etH > 9 || (etH === 9 && etM >= 30)) && etH < 16;
+  var status = marketOpen ? '<span style="color:var(--up)">● LIVE</span>' : '<span style="color:var(--dim)">○ CLOSED</span>';
+
+  var html = '<div style="text-align:center;padding:8px 12px">';
+  html += '<div style="font-size:10px;letter-spacing:1px;color:var(--dim);margin-bottom:10px">QQQ INTRADAY PRESSURE ' + status + '</div>';
+
+  // Two candle bars side by side
+  html += '<div style="display:flex;justify-content:center;align-items:flex-end;gap:32px;height:' + maxH + 'px;margin:8px 0">';
+
+  // Buy bar
+  html += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">';
+  html += '<div style="font-size:11px;color:' + buyCol + ';font-weight:600;margin-bottom:4px">' + buy + '</div>';
+  html += '<div style="width:60px;height:' + Math.max(buyH, 2) + 'px;background:' + buyCol + ';border-radius:3px 3px 0 0;';
+  html += 'box-shadow:0 0 12px ' + buyCol + '40;transition:height 0.5s ease"></div>';
+  html += '</div>';
+
+  // Sell bar
+  html += '<div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%">';
+  html += '<div style="font-size:11px;color:' + sellCol + ';font-weight:600;margin-bottom:4px">' + sell + '</div>';
+  html += '<div style="width:60px;height:' + Math.max(sellH, 2) + 'px;background:' + sellCol + ';border-radius:3px 3px 0 0;';
+  html += 'box-shadow:0 0 12px ' + sellCol + '40;transition:height 0.5s ease"></div>';
+  html += '</div>';
+
+  html += '</div>';
+
+  // Labels
+  html += '<div style="display:flex;justify-content:center;gap:32px;margin-top:6px">';
+  html += '<div style="width:60px;text-align:center;font-size:10px;letter-spacing:1px;color:' + buyCol + '">BUYERS</div>';
+  html += '<div style="width:60px;text-align:center;font-size:10px;letter-spacing:1px;color:' + sellCol + '">SELLERS</div>';
+  html += '</div>';
+
+  // Percentage bar
+  html += '<div style="margin-top:14px;height:6px;border-radius:3px;overflow:hidden;display:flex;background:var(--bg-card,#1a1a2e)">';
+  html += '<div style="width:' + buyPct + '%;background:' + buyCol + ';transition:width 0.5s"></div>';
+  html += '<div style="width:' + sellPct + '%;background:' + sellCol + ';transition:width 0.5s"></div>';
+  html += '</div>';
+  html += '<div style="display:flex;justify-content:space-between;font-size:10px;color:var(--dim);margin-top:3px">';
+  html += '<span>' + buyPct + '% buy</span><span>' + sellPct + '% sell</span>';
+  html += '</div>';
+
+  // Note about data source
+  html += '<div style="margin-top:10px;font-size:9px;color:var(--faint);line-height:1.3">';
+  html += 'Tracks QQQ price direction on each 15s poll.<br>Price up = buy tick, price down = sell tick.</div>';
+
+  html += '</div>';
+  return html;
+}
+window.renderQqqVolume = renderQqqVolume;
 
 // Simple clock widget
 function renderClockWidget() {
@@ -6432,6 +6531,7 @@ var CATEGORIES = [
     { id:'volume-pace',           name:'Volume Pace',             question:'Is volume above or below normal?',             dw:340, dh:240 },
     { id:'buyer-seller-pressure', name:'Buyer / Seller Pressure', question:'Who is more aggressive?',                      dw:360, dh:280 },
     { id:'tape-behavior',         name:'Tape Behavior',           question:'What does the tape reveal?',                   dw:360, dh:300 },
+    { id:'qqq-volume',            name:'QQQ Buy / Sell Volume',   question:'Who is dominating — buyers or sellers?',       dw:320, dh:300 },
   ]},
   { id:'options', label:'Options & Greeks', question:'Where is options exposure concentrated and how might dealers respond?', widgets:[
     { id:'gamma-regime',          name:'Gamma Regime',            question:'Are we in positive or negative gamma?',         dw:360, dh:260 },
@@ -6906,24 +7006,6 @@ var searchText = '';
 
 function togglePanel() { panelOpen = !panelOpen; renderPanel(); }
 
-function isOptionsCategory(cat) {
-  var categoryInfo = [cat.id, cat.label, cat.question].join(' ');
-  return /\b(options?|greeks?|gamma|gex|dealer|puts?|calls?)\b/i.test(categoryInfo);
-}
-
-function filteredCategories(query) {
-  var lower = query.trim().toLowerCase();
-  return CATEGORIES.map(function(cat) {
-    if (!lower) return cat;
-    var categoryMatches = (cat.label + ' ' + cat.question).toLowerCase().includes(lower);
-    return Object.assign({}, cat, {
-      widgets: categoryMatches ? cat.widgets : cat.widgets.filter(function(w) {
-        return (w.name + ' ' + w.question).toLowerCase().includes(lower);
-      })
-    });
-  }).filter(function(cat) { return cat.widgets.length > 0; });
-}
-
 function renderPanel() {
   var old = document.getElementById('addPanel');
   if (old) old.remove();
@@ -6944,58 +7026,30 @@ function renderPanel() {
   panel.id = 'addPanel';
   panel.className = 'add-panel';
 
-  // Group automatically from the registry metadata: options first, everything else general.
-  var filtered = filteredCategories(searchText);
-  var groups = [
-    {
-      id: 'options',
-      label: 'Options',
-      note: 'Options positioning, Greeks, dealer exposure, and implied outcomes',
-      categories: filtered.filter(isOptionsCategory)
-    },
-    {
-      id: 'general',
-      label: 'General',
-      note: 'Price action, participation, volatility, momentum, events, and workflow',
-      categories: filtered.filter(function(cat) { return !isOptionsCategory(cat); })
-    }
-  ].filter(function(group) { return group.categories.length > 0; });
+  // Flatten all widgets into one alphabetical list
+  var lower = searchText.toLowerCase();
+  var allWidgets = [];
+  CATEGORIES.forEach(c => c.widgets.forEach(w => allWidgets.push(w)));
+  allWidgets.sort((a, b) => a.name.localeCompare(b.name));
+  if (searchText) {
+    allWidgets = allWidgets.filter(w => w.name.toLowerCase().includes(lower) || w.question.toLowerCase().includes(lower));
+  }
 
   var html = '<div class="add-panel-header"><h2>Add Widget</h2><button class="add-panel-close" onclick="panelOpen=false; renderPanel()">✕</button></div>';
   html += `<input class="search-box" id="panelSearch" placeholder="Search widgets..." value="${esc(searchText)}" oninput="searchText=this.value; renderPanel()">`;
-  html += '<div class="cat-list">';
+  html += '<div class="cat-list"><div class="cat-widgets">';
 
-  groups.forEach(function(group) {
-    var widgetCount = group.categories.reduce(function(count, cat) { return count + cat.widgets.length; }, 0);
-    html += `<section class="widget-group"><div class="widget-group-header">`;
-    html += `<span class="widget-group-title">${esc(group.label)}</span><span class="widget-group-count">${widgetCount}</span></div>`;
-    html += `<div class="widget-group-note">${esc(group.note)}</div>`;
-
-    group.categories.forEach(function(cat) {
-      var isExpanded = searchText !== '' || expandedCat === cat.id || (group.id === 'options' && expandedCat === null);
-      var nextExpanded = isExpanded && !searchText ? 'null' : `'${cat.id}'`;
-      html += `<button class="cat-btn" onclick="expandedCat=${nextExpanded}; renderPanel()">`;
-      html += `<span class="cat-arrow">${isExpanded ? '▼' : '▶'}</span><div style="min-width:0;flex:1">`;
-      html += `<div class="cat-label">${esc(cat.label)}</div><div class="cat-question">${esc(cat.question)}</div></div>`;
-      html += `<span class="cat-count">${cat.widgets.length}</span></button>`;
-      if (isExpanded) {
-        html += '<div class="cat-widgets">';
-        cat.widgets.forEach(function(w) {
-          html += `<button class="widget-option" onclick="addWidget('${w.id}'); panelOpen=false; renderPanel()">`;
-          html += `<div class="wo-name">${esc(w.name)}</div>`;
-          html += `<div class="wo-q">${esc(w.question)}</div></button>`;
-        });
-        html += '</div>';
-      }
-    });
-    html += '</section>';
+  allWidgets.forEach(w => {
+    html += `<button class="widget-option" onclick="addWidget('${w.id}'); panelOpen=false; renderPanel()">`;
+    html += `<div class="wo-name">${esc(w.name)}</div>`;
+    html += `<div class="wo-q">${esc(w.question)}</div></button>`;
   });
 
-  if (groups.length === 0) {
+  if (allWidgets.length === 0) {
     html += `<div class="no-results">No widgets match "${esc(searchText)}"</div>`;
   }
 
-  html += '</div>';
+  html += '</div></div>';
   panel.innerHTML = html;
   document.body.appendChild(panel);
 
